@@ -1,20 +1,22 @@
+Jonas: PNG
+
 to setup
-  clear-all
-  create-turtles 1
-  ask turtles [set shape "bug"]
+
 end
+
 
 to step
-  ask turtles [set heading random 360]
-  ask turtles [forward 10]
-  ask turtles [set pcolor yellow]
-end
-
-to smell
 
 end
 
-to evaporate
+
+to smell - Lukas
+  rieche nur vor der ameise (180 degree)
+  nur drehen
+end
+
+
+to evaporate - Timon
   ask patches [
     if pcolor != green and pcolor != blue and pcolor != brown
     [
@@ -24,6 +26,27 @@ to evaporate
         ]
     ]
   ]
+end
+
+
+to move - Lukas
+  1 step
+  nicht über brown
+end
+
+
+to putPheromones - Timon
+
+end
+
+
+to checkFood - Jonas
+
+end
+
+
+to dropFood - Jonas
+
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -129,6 +152,21 @@ NIL
 NIL
 NIL
 1
+
+SLIDER
+70
+149
+242
+182
+smell-angle
+smell-angle
+0
+360
+50
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
