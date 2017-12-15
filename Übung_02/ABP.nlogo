@@ -1,62 +1,84 @@
-Jonas: PNG
+;;Jonas: PNG
+
+turtles-own [food-picked-up] ;;a boolean indicating if food is picked up or not
+
+patches-own [pheromones] ;;in range of 0 to 100 for each patch
 
 to setup
-
+  clear-all
+  resize-world -51 51 -51 51
+  set-patch-size 4
+  import-pcolors "patch.png"
+  ;;ask patches [set pheromones 0] ;; reset pheromones
+  ask patches [set pheromones random 100] ;; for testing issues set to random value
+  reset-ticks
 end
 
 
-to step
+to step ;;Lukas
+  evaporate
+  drawPheromones
 
+  ask turtles [putPheromones]
+  tick
 end
 
 
-to smell - Lukas
-  rieche nur vor der ameise (180 degree)
-  nur drehen
+to smell ;; Lukas
+  ;;rieche nur vor der ameise (180 degree)
+  ;;nur drehen
 end
 
 
-to evaporate - Timon
-  ask patches [
-    if pcolor != green and pcolor != blue and pcolor != brown
-    [
-      let clist extract-rgb pcolor
-
-      foreach clist [set clist
-        ]
-    ]
+to evaporate ;; Timon
+  ask patches[
+    ;;first do the actual evaporation
+    set pheromones pheromones * ((100 - evaporate-rate) / 100)
   ]
 end
 
 
-to move - Lukas
-  1 step
-  nicht über brown
+to putPheromones ;; executed on turtles
+  if food-picked-up [
+    ask patch-here [set pheromones pheromones + pheromone-amount]
+  ]
 end
 
 
-to putPheromones - Timon
+to drawPheromones ;;use a color on the yellow scale based on pheromones
+  if visualize-pheromones[
+    ask patches[
+      if not (shade-of? pcolor green or shade-of? pcolor blue or shade-of? pcolor brown)[
+          ;;use a color on the yellow scale based on pheromones
+          set pcolor scale-color yellow pheromones 0 100
+      ]
+    ]
+  ]
+end
 
+to move ;;- Lukas
+  ;;1 step
+  ;;nicht über brown
 end
 
 
-to checkFood - Jonas
-
+to checkFood ;;- Jonas
+  ;;see food-picked-up (ganz oben als variable für turtles)
 end
 
 
-to dropFood - Jonas
+to dropFood ;;- Jonas
 
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-210
-10
-1221
-548
-38
-19
-13.0
+201
+55
+707
+580
+51
+51
+4.0
 1
 10
 1
@@ -66,10 +88,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--38
-38
--19
-19
+-51
+51
+-51
+51
 0
 0
 1
@@ -77,10 +99,10 @@ ticks
 30.0
 
 SLIDER
-75
-87
-247
-120
+11
+88
+183
+121
 smell-distance
 smell-distance
 0
@@ -92,10 +114,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-62
-188
-234
-221
+11
+169
+183
+202
 view-distance
 view-distance
 0
@@ -107,25 +129,25 @@ NIL
 HORIZONTAL
 
 SLIDER
-55
-241
-227
-274
+12
+209
+184
+242
 evaporate-rate
 evaporate-rate
 0
-100
-50
+10
 1
+0.05
 1
-NIL
+%
 HORIZONTAL
 
 SLIDER
-61
-316
-233
-349
+12
+248
+184
+281
 ant-count
 ant-count
 0
@@ -154,15 +176,58 @@ NIL
 1
 
 SLIDER
-70
-149
-242
-182
+11
+128
+183
+161
 smell-angle
 smell-angle
 0
 360
 50
+1
+1
+NIL
+HORIZONTAL
+
+SWITCH
+12
+348
+186
+381
+visualize-pheromones
+visualize-pheromones
+0
+1
+-1000
+
+BUTTON
+50
+517
+167
+550
+NIL
+step
+T
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SLIDER
+17
+302
+190
+336
+pheromone-amount
+pheromone-amount
+0
+100
+20
 1
 1
 NIL
