@@ -59,6 +59,8 @@ end
 to move ;;- Lukas
   ;;1 step
   ;;nicht über brown
+  ;; call drop-food to drop food (in der loop)
+  ;; wenn food-picked-up suche nest, sonst suche futter
 end
 
 
