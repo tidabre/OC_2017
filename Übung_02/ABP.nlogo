@@ -9,8 +9,10 @@ to setup
   resize-world -51 51 -51 51
   set-patch-size 4
   import-pcolors "patch.png"
-  ;;ask patches [set pheromones 0] ;; reset pheromones
-  ask patches [set pheromones random 100] ;; for testing issues set to random value
+  ask patches [set pheromones 0] ;; reset pheromones
+  create-turtles ant-count [setxy -15 -40]
+  ask turtles [set food-picked-up false]
+  ;;ask patches [set pheromones random 100] ;; for testing issues set to random value
   reset-ticks
 end
 
@@ -18,7 +20,14 @@ end
 to step ;;Lukas
   evaporate
   drawPheromones
-
+  foreach n-values count turtles [?] [
+    ask turtle ? [smell]
+    ask turtle ? [move]
+  ]
+  ;;smell
+  ;;move
+  ask turtles [pickUpFood]
+  ask turtles [dropFood]
   ask turtles [putPheromones]
   tick
 end
@@ -27,6 +36,26 @@ end
 to smell ;; Lukas
   ;;rieche nur vor der ameise (180 degree)
   ;;nur drehen
+  let half smell-angle / 2
+  let angleList n-values half [?]
+  let distanceList n-values smell-distance [?]
+  let maxPhero 0
+  ;;foreach n-values count turtles [?] [
+    foreach angleList [
+      let angle ?
+      foreach distanceList [
+        let dis ?
+        if [pheromones] of patch-right-and-ahead angle dis > maxPhero [
+          set maxPhero [pheromones] of patch-right-and-ahead angle dis
+          rt angle
+        ]
+        if [pheromones] of patch-left-and-ahead angle dis > maxPhero [
+          set maxPhero [pheromones] of patch-left-and-ahead angle dis
+          lt angle
+        ]
+      ]
+    ]
+  ;;]
 end
 
 
@@ -41,6 +70,7 @@ end
 to putPheromones ;; executed on turtles
   if food-picked-up [
     ask patch-here [set pheromones pheromones + pheromone-amount]
+    ask neighbors4 [set pheromones pheromones + pheromone-amount]
   ]
 end
 
@@ -57,21 +87,56 @@ to drawPheromones ;;use a color on the yellow scale based on pheromones
 end
 
 to move ;;- Lukas
+  ;;foreach n-values count turtles [?1] [
+  ;;  ask turtle ?1 [ rngTurn]
+  ;;  ask turtle ?1 [ fd 1 ]
+  ;;]
+  rt random 15
+  lt random 15
+  rngTurn
+  fd 1
   ;;1 step
   ;;nicht über brown
   ;; call drop-food to drop food (in der loop)
   ;; wenn food-picked-up suche nest, sonst suche futter
 end
 
+to rngTurn
+  let side random 2
+  let wall 34.6
+  if [pcolor] of patch-ahead 1 != wall [
+
+    stop
+  ]
+
+  if [pcolor] of patch-ahead 1 = wall or [pcolor] of patch-ahead 1 = orange [
+    ;;show "wall!"
+    if side = 0 [
+      rt random 45 ;;+ 90
+    ]
+    if side = 1 [
+      lt random 45 ;;+ 90
+    ]
+  ]
+  rngTurn
+
+end
 
 to checkFood ;;- Jonas
   ;;see food-picked-up (ganz oben als variable für turtles)
+
 end
 
 
-to dropFood ;;- Jonas
+to dropFood ;;- Jonas (edited Lukas)
   ;;drops the food if the turtle is on a nest-patch
   if (shade-of? pcolor blue) [
+    set food-picked-up false
+  ]
+end
+
+to pickUpFood ;;- Lukas
+  if (shade-of? pcolor green) [
     set food-picked-up true
   ]
 end
@@ -112,7 +177,7 @@ smell-distance
 smell-distance
 0
 100
-50
+22
 1
 1
 NIL
@@ -142,7 +207,7 @@ evaporate-rate
 evaporate-rate
 0
 10
-1
+5.35
 0.05
 1
 %
@@ -157,7 +222,7 @@ ant-count
 ant-count
 0
 100
-61
+100
 1
 1
 NIL
@@ -189,7 +254,7 @@ smell-angle
 smell-angle
 0
 360
-50
+44
 1
 1
 NIL
@@ -232,7 +297,7 @@ pheromone-amount
 pheromone-amount
 0
 100
-20
+15
 1
 1
 NIL
