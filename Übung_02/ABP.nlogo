@@ -68,14 +68,17 @@ end
 
 
 to dropFood ;;- Jonas
-
+  ;;drops the food if the turtle is on a nest-patch
+  if (shade-of? pcolor blue) [
+    set food-picked-up true
+  ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
 201
 55
-707
-580
+623
+498
 51
 51
 4.0
@@ -152,7 +155,7 @@ ant-count
 ant-count
 0
 100
-50
+61
 1
 1
 NIL
@@ -222,7 +225,7 @@ SLIDER
 17
 302
 190
-336
+335
 pheromone-amount
 pheromone-amount
 0
