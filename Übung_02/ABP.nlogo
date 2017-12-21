@@ -1,6 +1,6 @@
 ;;Jonas: PNG
 
-turtles-own [food-picked-up] ;;a boolean indicating if food is picked up or not
+turtles-own [food-picked-up ignore-ticks] ;;a boolean indicating if food is picked up or not
 
 patches-own [pheromones pheromones-home] ;;in range of 0 to 100 for each patch
 
@@ -11,8 +11,10 @@ to setup
   import-pcolors "patch.png"
   ask patches [set pheromones 0] ;; reset pheromones
   ask patches [set pheromones-home 100 - distancexy -16 -37] ;; reset pheromones
+  ask patches [decreaseWallHome]
   create-turtles ant-count [setxy -15 -40]
   ask turtles [set food-picked-up false]
+  ask turtles [set ignore-ticks 0]
   ask turtles [set shape "Bug"]
   ask turtles [set size 2]
   ;;ask patches [set pheromones random 100] ;; for testing issues set to random value
@@ -36,48 +38,56 @@ to step ;;Lukas
   ask turtles [pickUpFood]
   ask turtles [dropFood]
   ask turtles [putPheromones]
+  ask turtles [decrease-ign-ticks]
   tick
 end
 
 to probability-smell
    ;;rieche nur vor der ameise
-  let patch-list []
 
-  ifelse food-picked-up [
-    set patch-list sort-by [[pheromones-home] of ?1 < [pheromones-home] of ?2] patches in-radius smell-distance
-  ]
-  [
-    set patch-list sort-by [[pheromones] of ?1 < [pheromones] of ?2] patches in-cone smell-distance smell-angle
-  ]
+  ;;if ignore-ticks > 0 [
+    let patch-list []
 
-  ;foreach patch-list [
-  ; let c-patch ?
-  ;  ifelse food-picked-up [
-  ;    set total-pheromones total-pheromones + [pheromones-home] of c-patch
-  ;  ]
-  ;  [
-  ;    set total-pheromones total-pheromones + [pheromones] of c-patch
-  ;  ]
-  ;]
+    ifelse food-picked-up [
+      set patch-list sort-by [[pheromones-home] of ?1 < [pheromones-home] of ?2] patches in-radius smell-distance
+    ]
+    [
+      set patch-list sort-by [[pheromones] of ?1 < [pheromones] of ?2] patches in-cone smell-distance smell-angle
+    ]
 
-  ifelse food-picked-up [
-    foreach patch-list [
-      let c-patch ?
-      if 20 > random 100 [ ; give it a 20% chance to pick the most smelling block
-        face c-patch
+    ;foreach patch-list [
+    ; let c-patch ?
+    ;  ifelse food-picked-up [
+    ;    set total-pheromones total-pheromones + [pheromones-home] of c-patch
+    ;  ]
+    ;  [
+    ;    set total-pheromones total-pheromones + [pheromones] of c-patch
+    ;  ]
+    ;]
+
+    ifelse food-picked-up [
+      foreach patch-list [
+        let c-patch ?
+        if 20 > random 100 [ ; give it a 20% chance to pick the most smelling block
+          face c-patch
+        ]
       ]
     ]
-  ]
-  [
-    foreach patch-list [
-      let c-patch ?
-      if take-patch-probability > random 100 and [pheromones] of c-patch > 1 [
-        face c-patch
+    [
+      foreach patch-list [
+        let c-patch ?
+        if take-patch-probability > random 100 and [pheromones] of c-patch > 1 [
+          face c-patch
+        ]
       ]
     ]
+  ;;]
+end
+
+to decrease-ign-ticks
+  if ignore-ticks > 0 [
+    set ignore-ticks ignore-ticks - 1
   ]
-
-
 end
 
 to smell ;; Lukas
@@ -118,7 +128,7 @@ end
 to putPheromones ;; executed on turtles
   if food-picked-up [
     ask patch-here [set pheromones pheromones + pheromone-amount]
-    ask neighbors4 [set pheromones pheromones + pheromone-amount]
+    ask neighbors [set pheromones pheromones + pheromone-amount]
   ]
 end
 
@@ -144,9 +154,9 @@ to move ;;- Lukas
   ;;  ask turtle ?1 [ rngTurn]
   ;;  ask turtle ?1 [ fd 1 ]
   ;;]
-  rt random 15
-  lt random 15
-  rngTurn 45
+  rt random 40
+  lt random 40
+  rngTurn 90
   fd 1
   ;;1 step
   ;;nicht über brown
@@ -164,17 +174,47 @@ to rngTurn [angle]
     stop
   ]
 
-  if [pcolor] of patch-ahead 1 = wall or [pcolor] of patch-ahead 1 = orange [
+
+
+
+  if [pcolor] of patch-ahead 1 = wall [
     ;;show "wall!"
+    ;;show [pcolor] of patches in-cone 1 180
+    ifelse [pcolor] of patches in-cone 1 180 = [34.6 34.6 34.6] [
+      show "Break"
+      ;;show [pcolor] of patches in-cone 1 360
+      ;;turnLoop 90
+      rt random 360
+
+
+
+    ][
     ifelse towards patch-ahead 1 > 180 and random 100 < 70[
       lt random angle ;;+ 90
     ]
     [
       rt random angle ;;+ 90
     ]
+    ]
   ]
-  rngTurn angle + 5
+    rngTurn angle + 5
+end
 
+to turnLoop [angle]
+  let rng random angle
+  show patch-right-and-ahead 3 rng
+  ifelse [pcolor] of patch-right-and-ahead 1 rng = 34.6 [
+    ifelse angle < 360 [
+      turnLoop angle + 5
+    ]
+    [
+      turnLoop angle
+    ]
+  ]
+  [
+    rt angle
+    stop
+  ]
 end
 
 to checkFood ;;- Jonas
@@ -195,6 +235,19 @@ to pickUpFood ;;- Lukas
   if (shade-of? pcolor green and not food-picked-up) [
     set food-picked-up true
     lt 180
+  ]
+end
+
+to decreaseWallHome
+  let neighborList []
+  set neighborList [pcolor] of neighbors4
+  foreach neighborList [
+    if ? = 34.6 [
+        set pheromones-home pheromones-home - wall-penalty
+      ]
+  ]
+  if pheromones-home < 0 [
+    set pheromones-home 0
   ]
 end
 @#$#@#$#@
@@ -264,7 +317,7 @@ ant-count
 ant-count
 0
 100
-100
+60
 1
 1
 NIL
@@ -296,7 +349,7 @@ smell-angle
 smell-angle
 0
 360
-190
+46
 1
 1
 NIL
@@ -339,7 +392,7 @@ pheromone-amount
 pheromone-amount
 0
 100
-15
+35
 1
 1
 NIL
@@ -369,7 +422,7 @@ default-patch-probability
 default-patch-probability
 0
 100
-0.1
+0
 0.1
 1
 NIL
@@ -391,6 +444,21 @@ NIL
 NIL
 NIL
 1
+
+SLIDER
+12
+168
+184
+201
+wall-penalty
+wall-penalty
+0
+100
+10
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
