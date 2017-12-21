@@ -10,7 +10,7 @@ to setup
   set-patch-size 4
   import-pcolors "patch.png"
   ask patches [set pheromones 0] ;; reset pheromones
-  ask patches [set pheromones-home 100 - distancexy -16 -37] ;; reset pheromones
+  ask patches [set pheromones-home 100 - distancexy -30 -50] ;; reset pheromones
   ask patches [decreaseWallHome]
   create-turtles ant-count [setxy -15 -40]
   ask turtles [set food-picked-up false]
@@ -39,40 +39,53 @@ to step ;;Lukas
   ask turtles [dropFood]
   ask turtles [putPheromones]
   ask turtles [decrease-ign-ticks]
+  diffuse pheromones 0.05
+  clear-walls
   tick
 end
 
 to probability-smell
    ;;rieche nur vor der ameise
-  let patch-list []
 
-  ifelse food-picked-up [
-    set patch-list sort-by [[pheromones-home] of ?1 < [pheromones-home] of ?2] patches in-radius smell-distance
-  ]
-  [
-    set patch-list sort-by [[pheromones] of ?1 < [pheromones] of ?2] patches in-cone smell-distance smell-angle
-  ]
+  ;;if ignore-ticks > 0 [
+    let patch-list []
 
-  ifelse food-picked-up [
-    foreach patch-list [
-      let c-patch ?
-      if 50 > random 100 [ ; give it a 20% chance to pick the most smelling block
-        let old-heading heading
-        face c-patch
-        set heading (heading + old-heading * 400) / 401
+    ifelse food-picked-up [
+      set patch-list sort-by [[pheromones-home] of ?1 < [pheromones-home] of ?2] patches in-radius smell-distance
+    ]
+    [
+      set patch-list sort-by [[pheromones] of ?1 < [pheromones] of ?2] patches in-cone smell-distance smell-angle
+    ]
+
+    ;foreach patch-list [
+    ; let c-patch ?
+    ;  ifelse food-picked-up [
+    ;    set total-pheromones total-pheromones + [pheromones-home] of c-patch
+    ;  ]
+    ;  [
+    ;    set total-pheromones total-pheromones + [pheromones] of c-patch
+    ;  ]
+    ;]
+
+    ifelse food-picked-up [
+      foreach patch-list [
+        let c-patch ?
+        if 50 > random 100 [ ; give it a 20% chance to pick the most smelling block
+          let old-heading heading
+          face c-patch
+          set heading (heading + old-heading * 400) / 401
+        ]
       ]
     ]
-  ]
-  [
-    foreach patch-list [
-      let c-patch ?
-      if take-patch-probability > random 100 and [pheromones] of c-patch > 1 [
-        face c-patch
+    [
+      foreach patch-list [
+        let c-patch ?
+        if take-patch-probability > random 100 and [pheromones] of c-patch > 1 [
+          face c-patch
+        ]
       ]
     ]
-  ]
-
-
+  ;;]
 end
 
 to decrease-ign-ticks
@@ -119,7 +132,7 @@ end
 to putPheromones ;; executed on turtles
   if food-picked-up [
     ask patch-here [set pheromones pheromones + pheromone-amount]
-    ask neighbors [set pheromones pheromones + pheromone-amount]
+    ask neighbors4 [set pheromones pheromones + pheromone-amount]
   ]
 end
 
@@ -175,7 +188,7 @@ to rngTurn [angle]
       show "Break"
       ;;show [pcolor] of patches in-cone 1 360
       ;;turnLoop 90
-      rt random 360
+      rt 180
 
 
 
@@ -231,17 +244,26 @@ to pickUpFood ;;- Lukas
   ]
 end
 
+to clear-walls
+  ask patches [
+    if pcolor = 34.6 [
+      set pheromones 0
+      set pheromones-home 0
+    ]
+  ]
+end
+
 to decreaseWallHome
   let neighborList []
-  set neighborList [pcolor] of neighbors4
+  set neighborList [pcolor] of neighbors
   foreach neighborList [
     if ? = 34.6 [
         set pheromones-home pheromones-home - wall-penalty
       ]
   ]
-  if pheromones-home < 0 [
-    set pheromones-home 0
-  ]
+  ;;if pheromones-home < 0 [
+  ;;  set pheromones-home 0
+  ;;]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -280,7 +302,7 @@ smell-distance
 smell-distance
 0
 100
-5
+3
 1
 1
 NIL
@@ -295,7 +317,7 @@ evaporate-rate
 evaporate-rate
 0
 10
-1.5
+1
 0.05
 1
 %
@@ -310,7 +332,7 @@ ant-count
 ant-count
 0
 100
-60
+100
 1
 1
 NIL
@@ -385,7 +407,7 @@ pheromone-amount
 pheromone-amount
 0
 100
-35
+30
 1
 1
 NIL
@@ -447,7 +469,7 @@ wall-penalty
 wall-penalty
 0
 100
-10
+100
 1
 1
 NIL
