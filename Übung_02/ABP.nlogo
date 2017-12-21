@@ -10,12 +10,13 @@ to setup
   set-patch-size 4
   import-pcolors "patch.png"
   ask patches [set pheromones 0] ;; reset pheromones
-  ask patches [set pheromones-home 100 - distancexy -30 -50] ;; reset pheromones
+  ask patches [set pheromones-home 100 - distancexy -17 -50] ;; reset pheromones
   ask patches [decreaseWallHome]
-  create-turtles ant-count [setxy -15 -40]
+  create-turtles ant-count [setxy -20 -40]
   ask turtles [set food-picked-up false]
   ask turtles [set ignore-ticks 0]
   ask turtles [set shape "Bug"]
+  ask turtles [set color orange]
   ask turtles [set size 2]
   ;;ask patches [set pheromones random 100] ;; for testing issues set to random value
   reset-ticks
@@ -232,6 +233,7 @@ to dropFood ;;- Jonas (edited Lukas)
   ;;drops the food if the turtle is on a nest-patch
   if (shade-of? pcolor blue and food-picked-up) [
     set food-picked-up false
+    set color orange
     lt 180
   ]
 end
@@ -247,8 +249,9 @@ end
 
 to checkFoodTime ;; - Lukas
   set food-time food-time + 1
-  if food-time > 800 [
+  if food-time > 450 [
     set food-picked-up false
+    set color orange
   ]
 end
 
@@ -295,11 +298,11 @@ GRAPHICS-WINDOW
 51
 -51
 51
-0
-0
+1
+1
 1
 ticks
-30.0
+60.0
 
 SLIDER
 11
@@ -310,7 +313,7 @@ smell-distance
 smell-distance
 0
 100
-5
+6
 1
 1
 NIL
@@ -325,7 +328,7 @@ evaporate-rate
 evaporate-rate
 0
 10
-0.5
+0.65
 0.05
 1
 %
@@ -340,7 +343,7 @@ ant-count
 ant-count
 0
 100
-60
+100
 1
 1
 NIL
@@ -372,7 +375,7 @@ smell-angle
 smell-angle
 0
 360
-46
+75
 1
 1
 NIL
@@ -415,7 +418,7 @@ pheromone-amount
 pheromone-amount
 0
 100
-50
+90
 1
 1
 NIL
@@ -430,7 +433,7 @@ take-patch-probability
 take-patch-probability
 0
 30
-7.6
+30
 0.1
 1
 NIL
@@ -477,7 +480,7 @@ wall-penalty
 wall-penalty
 0
 100
-10
+100
 1
 1
 NIL
