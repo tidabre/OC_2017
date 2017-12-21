@@ -2,7 +2,7 @@
 
 turtles-own [food-picked-up] ;;a boolean indicating if food is picked up or not
 
-patches-own [pheromones] ;;in range of 0 to 100 for each patch
+patches-own [pheromones pheromones-home] ;;in range of 0 to 100 for each patch
 
 to setup
   clear-all
@@ -10,6 +10,7 @@ to setup
   set-patch-size 4
   import-pcolors "patch.png"
   ask patches [set pheromones 0] ;; reset pheromones
+  ask patches [set pheromones-home distancexy -17 -41] ;; reset pheromones
   create-turtles ant-count [setxy -15 -40]
   ask turtles [set food-picked-up false]
   ;;ask patches [set pheromones random 100] ;; for testing issues set to random value
@@ -17,23 +18,69 @@ to setup
 end
 
 
+
 to step ;;Lukas
   evaporate
   drawPheromones
-  foreach n-values count turtles [?] [
-    ask turtle ? [smell]
-    ask turtle ? [move]
-  ]
+  ;Why so complicated? :D
+  ;foreach n-values count turtles [?] [
+  ;  ask turtle ? [smell]
+  ;  ask turtle ? [move]
+  ;]
   ;;smell
   ;;move
+  ask turtles [probability-smell]
+  ask turtles [move-no-random]
   ask turtles [pickUpFood]
   ask turtles [dropFood]
   ask turtles [putPheromones]
   tick
 end
 
+to probability-smell
+   ;;rieche nur vor der ameise
+  let total-pheromones 0.1
+  let patch-list []
+
+  ifelse food-picked-up [
+    set patch-list sort-by [[pheromones] of ?1 > [pheromones] of ?2] patches in-cone smell-distance smell-angle
+  ]
+  [
+    set patch-list sort-by [[pheromones-home] of ?1 > [pheromones-home] of ?2] patches in-cone smell-distance smell-angle
+  ]
+
+  ;foreach patch-list [
+  ; let c-patch ?
+  ;  ifelse food-picked-up [
+  ;    set total-pheromones total-pheromones + [pheromones-home] of c-patch
+  ;  ]
+  ;  [
+  ;    set total-pheromones total-pheromones + [pheromones] of c-patch
+  ;  ]
+  ;]
+
+  ifelse food-picked-up [
+    foreach patch-list [
+    let c-patch ?
+    if take-patch-probability * ([pheromones-home] of c-patch + default-patch-probability) / 100 > random 100 [
+      face c-patch
+    ]
+  ]
+  ]
+  [
+    foreach patch-list [
+    let c-patch ?
+    if take-patch-probability * ([pheromones] of c-patch + default-patch-probability) / 100 > random 100 [
+      face c-patch
+    ]
+  ]
+  ]
+
+
+end
 
 to smell ;; Lukas
+
   ;;rieche nur vor der ameise (180 degree)
   ;;nur drehen
   let half smell-angle / 2
@@ -84,6 +131,11 @@ to drawPheromones ;;use a color on the yellow scale based on pheromones
       ]
     ]
   ]
+end
+
+to move-no-random ;;- Timon
+  rngTurn
+  fd 1
 end
 
 to move ;;- Lukas
@@ -177,22 +229,7 @@ smell-distance
 smell-distance
 0
 100
-22
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-11
-169
-183
-202
-view-distance
-view-distance
-0
-100
-50
+5
 1
 1
 NIL
@@ -207,7 +244,7 @@ evaporate-rate
 evaporate-rate
 0
 10
-5.35
+1.7
 0.05
 1
 %
@@ -254,7 +291,7 @@ smell-angle
 smell-angle
 0
 360
-44
+140
 1
 1
 NIL
@@ -297,8 +334,38 @@ pheromone-amount
 pheromone-amount
 0
 100
-15
+10
 1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+17
+411
+194
+444
+take-patch-probability
+take-patch-probability
+0
+30
+7.6
+0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+18
+453
+205
+486
+default-patch-probability
+default-patch-probability
+0
+100
+1
+0.1
 1
 NIL
 HORIZONTAL
