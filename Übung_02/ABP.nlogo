@@ -10,9 +10,11 @@ to setup
   set-patch-size 4
   import-pcolors "patch.png"
   ask patches [set pheromones 0] ;; reset pheromones
-  ask patches [set pheromones-home distancexy -17 -41] ;; reset pheromones
+  ask patches [set pheromones-home 100 - distancexy -16 -37] ;; reset pheromones
   create-turtles ant-count [setxy -15 -40]
   ask turtles [set food-picked-up false]
+  ask turtles [set shape "Bug"]
+  ask turtles [set size 2]
   ;;ask patches [set pheromones random 100] ;; for testing issues set to random value
   reset-ticks
 end
@@ -30,7 +32,7 @@ to step ;;Lukas
   ;;smell
   ;;move
   ask turtles [probability-smell]
-  ask turtles [move-no-random]
+  ask turtles [move]
   ask turtles [pickUpFood]
   ask turtles [dropFood]
   ask turtles [putPheromones]
@@ -39,14 +41,13 @@ end
 
 to probability-smell
    ;;rieche nur vor der ameise
-  let total-pheromones 0.1
   let patch-list []
 
   ifelse food-picked-up [
-    set patch-list sort-by [[pheromones] of ?1 > [pheromones] of ?2] patches in-cone smell-distance smell-angle
+    set patch-list sort-by [[pheromones-home] of ?1 < [pheromones-home] of ?2] patches in-radius smell-distance
   ]
   [
-    set patch-list sort-by [[pheromones-home] of ?1 > [pheromones-home] of ?2] patches in-cone smell-distance smell-angle
+    set patch-list sort-by [[pheromones] of ?1 < [pheromones] of ?2] patches in-cone smell-distance smell-angle
   ]
 
   ;foreach patch-list [
@@ -61,19 +62,19 @@ to probability-smell
 
   ifelse food-picked-up [
     foreach patch-list [
-    let c-patch ?
-    if take-patch-probability * ([pheromones-home] of c-patch + default-patch-probability) / 100 > random 100 [
-      face c-patch
+      let c-patch ?
+      if 20 > random 100 [ ; give it a 20% chance to pick the most smelling block
+        face c-patch
+      ]
     ]
-  ]
   ]
   [
     foreach patch-list [
-    let c-patch ?
-    if take-patch-probability * ([pheromones] of c-patch + default-patch-probability) / 100 > random 100 [
-      face c-patch
+      let c-patch ?
+      if take-patch-probability > random 100 and [pheromones] of c-patch > 1 [
+        face c-patch
+      ]
     ]
-  ]
   ]
 
 
@@ -134,7 +135,7 @@ to drawPheromones ;;use a color on the yellow scale based on pheromones
 end
 
 to move-no-random ;;- Timon
-  rngTurn
+  rngTurn 5
   fd 1
 end
 
@@ -145,7 +146,7 @@ to move ;;- Lukas
   ;;]
   rt random 15
   lt random 15
-  rngTurn
+  rngTurn 45
   fd 1
   ;;1 step
   ;;nicht über brown
@@ -153,7 +154,9 @@ to move ;;- Lukas
   ;; wenn food-picked-up suche nest, sonst suche futter
 end
 
-to rngTurn
+to rngTurn [angle]
+  ;;prefers (given a probability of 70%) to move along the wall in case of collision
+
   let side random 2
   let wall 34.6
   if [pcolor] of patch-ahead 1 != wall [
@@ -163,14 +166,14 @@ to rngTurn
 
   if [pcolor] of patch-ahead 1 = wall or [pcolor] of patch-ahead 1 = orange [
     ;;show "wall!"
-    if side = 0 [
-      rt random 45 ;;+ 90
+    ifelse towards patch-ahead 1 > 180 and random 100 < 70[
+      lt random angle ;;+ 90
     ]
-    if side = 1 [
-      lt random 45 ;;+ 90
+    [
+      rt random angle ;;+ 90
     ]
   ]
-  rngTurn
+  rngTurn angle + 5
 
 end
 
@@ -182,14 +185,16 @@ end
 
 to dropFood ;;- Jonas (edited Lukas)
   ;;drops the food if the turtle is on a nest-patch
-  if (shade-of? pcolor blue) [
+  if (shade-of? pcolor blue and food-picked-up) [
     set food-picked-up false
+    lt 180
   ]
 end
 
 to pickUpFood ;;- Lukas
-  if (shade-of? pcolor green) [
+  if (shade-of? pcolor green and not food-picked-up) [
     set food-picked-up true
+    lt 180
   ]
 end
 @#$#@#$#@
@@ -207,8 +212,8 @@ GRAPHICS-WINDOW
 1
 1
 0
-1
-1
+0
+0
 1
 -51
 51
@@ -244,7 +249,7 @@ evaporate-rate
 evaporate-rate
 0
 10
-1.7
+1.5
 0.05
 1
 %
@@ -291,7 +296,7 @@ smell-angle
 smell-angle
 0
 360
-140
+190
 1
 1
 NIL
@@ -334,7 +339,7 @@ pheromone-amount
 pheromone-amount
 0
 100
-10
+15
 1
 1
 NIL
@@ -364,11 +369,28 @@ default-patch-probability
 default-patch-probability
 0
 100
-1
+0.1
 0.1
 1
 NIL
 HORIZONTAL
+
+BUTTON
+71
+594
+150
+628
+oneStep
+step
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
