@@ -325,7 +325,7 @@ evaporate-rate
 evaporate-rate
 0
 10
-1.5
+0.5
 0.05
 1
 %
@@ -415,7 +415,7 @@ pheromone-amount
 pheromone-amount
 0
 100
-35
+50
 1
 1
 NIL
