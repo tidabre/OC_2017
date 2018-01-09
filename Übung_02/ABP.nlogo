@@ -10,7 +10,10 @@ to setup
   set-patch-size 4
   import-pcolors "patch.png"
   ask patches [set pheromones 0] ;; reset pheromones
-  ask patches [set pheromones-home 100 - distancexy -17 -50] ;; reset pheromones
+  ;;ask patches [set pheromones-home 100 - distancexy -17 -50] ;; reset pheromones
+
+  diffuse-home
+
   ask patches [decreaseWallHome]
   create-turtles ant-count [setxy -20 -40]
   ask turtles [set food-picked-up false]
@@ -22,7 +25,21 @@ to setup
   reset-ticks
 end
 
+to diffuse-home
+  ask patch -17 -42 [set pheromones-home 500]
 
+  let i 0
+  loop [
+    if i >= 250 [stop]
+    diffuse pheromones-home (home-diffusion-rate / 100)
+    ask patches [
+      if pcolor = 34.6 [
+        set pheromones-home 0
+        ]
+      ]
+    set i (i + 1)
+  ]
+end
 
 to step ;;Lukas
   evaporate
@@ -72,11 +89,8 @@ to probability-smell
     ifelse food-picked-up [
       foreach patch-list [
         let c-patch ?
-        if 50 > random 100 [ ; give it a 20% chance to pick the most smelling block
-          let old-heading heading
-          face c-patch
-          set heading (heading + old-heading * 400) / 401
-        ]
+        let old-heading heading
+        face c-patch
       ]
     ]
     [
@@ -187,7 +201,7 @@ to rngTurn [angle]
     ;;show "wall!"
     ;;show [pcolor] of patches in-cone 1 180
     ifelse [pcolor] of patches in-cone 1 180 = [34.6 34.6 34.6] [
-      show "Break"
+      ;;show "Break"
       ;;show [pcolor] of patches in-cone 1 360
       ;;turnLoop 90
       rt 180
@@ -328,7 +342,7 @@ evaporate-rate
 evaporate-rate
 0
 10
-0.65
+0.35
 0.05
 1
 %
@@ -375,17 +389,17 @@ smell-angle
 smell-angle
 0
 360
-75
+90
 1
 1
 NIL
 HORIZONTAL
 
 SWITCH
-12
-348
-186
-381
+16
+407
+190
+440
 visualize-pheromones
 visualize-pheromones
 0
@@ -393,10 +407,10 @@ visualize-pheromones
 -1000
 
 BUTTON
-50
-517
-167
-550
+53
+544
+170
+577
 NIL
 step
 T
@@ -410,25 +424,25 @@ NIL
 1
 
 SLIDER
-17
-302
-190
-335
+11
+340
+184
+373
 pheromone-amount
 pheromone-amount
 0
 100
-90
+100
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-17
-411
-194
-444
+18
+449
+195
+482
 take-patch-probability
 take-patch-probability
 0
@@ -440,10 +454,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-18
-453
-205
-486
+12
+491
+199
+524
 default-patch-probability
 default-patch-probability
 0
@@ -481,6 +495,21 @@ wall-penalty
 0
 100
 100
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+14
+295
+186
+328
+home-diffusion-rate
+home-diffusion-rate
+0
+100
+5
 1
 1
 NIL
