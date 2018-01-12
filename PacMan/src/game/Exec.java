@@ -1,5 +1,7 @@
 package game;
 
+import java.awt.event.ActionEvent;
+
 import game.controllers.GhostController;
 import game.controllers.Human;
 import game.controllers.PacManController;
@@ -8,27 +10,35 @@ import game.core.GameView;
 import game.core.Replay;
 import game.core._G_;
 import game.core._RG_;
-
-import java.awt.event.ActionEvent;
+import game.player.pacman.PacmanGroup6;
 
 /*
- * This class may be used to execute the game in timed or un-timed modes, with or without
- * visuals. Competitors should implement their controllers in game.entries.ghosts and 
- * game.entries.pacman respectively. The skeleton classes are already provided. The package
- * structure should not be changed (although you may create sub-packages in these packages).
+ * This class may be used to execute the game in timed or un-timed modes, with
+ * or without visuals. Competitors should implement their controllers in
+ * game.entries.ghosts and game.entries.pacman respectively. The skeleton
+ * classes are already provided. The package structure should not be changed
+ * (although you may create sub-packages in these packages).
  */
 public class Exec {
-	private GameView gv = null;
-	private Thread thread = null;
+	private GameView	gv		= null;
+	private Thread		thread	= null;
 
 	// Several options are listed - simply remove comments to use the option you
 	// want
 	public static void main(String[] args) {
-		Exec exec = new Exec();
+		final Exec exec = new Exec();
 
-		// this can be used for numerical testing (non-visual, no delays)
-		// exec.runExperiment(new RandomPacMan(),new
-		// AttractRepelGhosts(true),100);
+		final int trainingsPerNN = 5;
+		final PacmanGroup6 pacmanTrainer = new PacmanGroup6();
+
+		// pacmanTrainer.score(
+		// exec.runExperiment(
+		// pacmanTrainer,
+		// new Legacy(),
+		// trainingsPerNN));
+		pacmanTrainer.nextNN();
+
+		pacmanTrainer.nextGeneration();
 
 		// run game without time limits (un-comment if required)
 		// exec.runGame(new RandomPacMan(),new RandomGhosts(),true,G.DELAY);
@@ -37,8 +47,9 @@ public class Exec {
 		// exec.runGameTimed(new Human(),new AttractRepelGhosts(true),true);
 		// run game with time limits. Here NearestPillPacManVS is chosen to
 		// illustrate how to use graphics for debugging/information purposes
-//		exec.runGameTimed(new game.player.pacman.Human(), new AttractRepelGhosts(
-//				false), true);
+		// exec.runGameTimed(new game.player.pacman.Human(), new
+		// AttractRepelGhosts(
+		// false), true);
 
 		// this allows you to record a game and replay it later. This could be
 		// very useful when
@@ -63,53 +74,55 @@ public class Exec {
 		gv.getMainFrame().getButton()
 				.addActionListener(new java.awt.event.ActionListener() {
 					@Override
-					public void actionPerformed(java.awt.event.ActionEvent evt) {
+					public void actionPerformed(
+							java.awt.event.ActionEvent evt) {
 						startButtonActionPerformed(evt);
 					}
-		});
+				});
 	}
 
 	private void startButtonActionPerformed(ActionEvent evt) {
-		PacManController pacManController = gv.getMainFrame().getSelectedPacMan();
-		GhostController ghostController = gv.getMainFrame().getSelectedGhost();
-		
-		if(thread != null && thread.isAlive()){
+		final PacManController pacManController = gv.getMainFrame()
+				.getSelectedPacMan();
+		final GhostController ghostController = gv.getMainFrame()
+				.getSelectedGhost();
+
+		if (thread != null && thread.isAlive()) {
 			game.setGameOver(true);
 			gv.getMainFrame().getButton().setText("Start");
 			return;
 		}
-		
 
-		int trials = gv.getMainFrame().getTrials();
-		if(trials > 1){
+		final int trials = gv.getMainFrame().getTrials();
+		if (trials > 1) {
 			runExperiment(pacManController, ghostController, trials);
 		}
-		
+
 		pacMan = new PacMan(pacManController);
 		ghosts = new Ghosts(ghostController);
-		
-		if (gv.getMainFrame().getSelectedPacMan() instanceof game.player.pacman.AbstractHuman){
-			Human con = new Human();
+
+		if (gv.getMainFrame()
+				.getSelectedPacMan() instanceof game.player.pacman.AbstractHuman) {
+			final Human con = new Human();
 			pacMan = new PacMan(con);
 			gv.getMainFrame().getButton().addKeyListener(con);
 		}
-		
-		
-		if(game.gameOver()){
+
+		if (game.gameOver()) {
 			game.newGame();
 		}
-		
-		this.thread = new Thread(){
-			
+
+		this.thread = new Thread() {
+
 			@Override
-			public void run(){
+			public void run() {
 				while (!game.gameOver()) {
 					pacMan.alert();
 					ghosts.alert();
 
 					try {
 						Thread.sleep(G.DELAY);
-					} catch (InterruptedException e) {
+					} catch (final InterruptedException e) {
 						e.printStackTrace();
 					}
 
@@ -121,17 +134,17 @@ public class Exec {
 				ghosts.kill();
 				gv.getMainFrame().getButton().setText("Start");
 			}
-		}; 
+		};
 		this.thread.start();
 		gv.getMainFrame().getButton().setText("Stop");
 	}
 
-	protected int pacDir;
-	protected int[] ghostDirs;
-	protected _G_ game;
-	protected PacMan pacMan;
-	protected Ghosts ghosts;
-	protected boolean pacmanPlayed, ghostsPlayed;
+	protected int		pacDir;
+	protected int[]		ghostDirs;
+	protected _G_		game;
+	protected PacMan	pacMan;
+	protected Ghosts	ghosts;
+	protected boolean	pacmanPlayed, ghostsPlayed;
 
 	/*
 	 * For running multiple games without visuals. This is useful to get a good
@@ -141,27 +154,33 @@ public class Exec {
 	 * deviation/error) helps to get a better idea of how well the controller is
 	 * likely to do in the competition.
 	 */
-	public void runExperiment(PacManController pacManController,
-			GhostController ghostController, int trials) {
+	public double runExperiment(
+			PacManController pacManController,
+			GhostController ghostController,
+			int trials) {
 		double avgScore = 0;
 
-		_G_ gameTmp = new _G_();
-		int training = 1;
+		final _G_ gameTmp = new _G_();
+		final int training = 1;
 
 		for (int i = 0; i < trials; i++) {
 			gameTmp.newGame();
 
 			while (!gameTmp.gameOver()) {
-				long due = System.currentTimeMillis() + G.DELAY;
-				gameTmp.advanceGame(pacManController.getAction(gameTmp.copy(), due),
+				final long due = System.currentTimeMillis() + G.DELAY;
+				gameTmp.advanceGame(
+						pacManController.getAction(gameTmp.copy(), due),
 						ghostController.getActions(gameTmp.copy(), due));
 			}
 
 			avgScore += gameTmp.getScore();
-			System.out.println("Training "+training+++" Punkte: "+gameTmp.getScore());
+			// System.out.println("Training "+training+++" Punkte:
+			// "+gameTmp.getScore());
 		}
 
-		System.out.println("Gesamtpunkte/Versuche: "+avgScore+"/"+trials+" "+avgScore / trials);
+		// System.out.println("Gesamtpunkte/Versuche: "+avgScore+"/"+trials+"
+		// "+avgScore / trials);
+		return avgScore / trials;
 	}
 
 	/*
@@ -171,8 +190,11 @@ public class Exec {
 	 * purposes (as otherwise the game could be too fast if controllers compute
 	 * quickly. For testing, this can be set to 0 for fasted game play.
 	 */
-	public void runGame(PacManController pacManController,
-			GhostController ghostController, boolean visual, int delay) {
+	public void runGame(
+			PacManController pacManController,
+			GhostController ghostController,
+			boolean visual,
+			int delay) {
 		game = new _G_();
 		game.newGame();
 
@@ -182,14 +204,14 @@ public class Exec {
 			gv = new GameView(game).showGame();
 
 		while (!game.gameOver()) {
-			long due = System.currentTimeMillis() + G.DELAY;
-			game.advanceGame(pacManController.getAction(game.copy(), due),
+			final long due = System.currentTimeMillis() + G.DELAY;
+			game.advanceGame(
+					pacManController.getAction(game.copy(), due),
 					ghostController.getActions(game.copy(), due));
 
 			try {
 				Thread.sleep(delay);
-			} catch (Exception e) {
-			}
+			} catch (final Exception e) {}
 
 			if (visual)
 				gv.repaint();
@@ -200,8 +222,10 @@ public class Exec {
 	 * Run game with time limit. This is how it will be done in the competition.
 	 * Can be played with and without visual display of game states.
 	 */
-	public void runGameTimed(PacManController pacManController,
-			GhostController ghostController, boolean visual) {
+	public void runGameTimed(
+			PacManController pacManController,
+			GhostController ghostController,
+			boolean visual) {
 		game = new _G_();
 		game.newGame();
 		pacMan = new PacMan(pacManController);
@@ -212,8 +236,8 @@ public class Exec {
 		if (visual) {
 			gv = new GameView(game).showGame();
 
-			if (pacManController instanceof game.player.pacman.AbstractHuman){
-				Human con = new Human();
+			if (pacManController instanceof game.player.pacman.AbstractHuman) {
+				final Human con = new Human();
 				pacMan = new PacMan(con);
 				gv.getMainFrame().getButton().addKeyListener(con);
 			}
@@ -225,7 +249,7 @@ public class Exec {
 
 			try {
 				Thread.sleep(G.DELAY);
-			} catch (InterruptedException e) {
+			} catch (final InterruptedException e) {
 				e.printStackTrace();
 			}
 
@@ -243,8 +267,11 @@ public class Exec {
 	 * Runs a game and records all directions taken by all controllers - the
 	 * data may then be used to replay any game saved using replayGame(-).
 	 */
-	public void runGameTimedAndRecorded(PacManController pacManController,
-			GhostController ghostController, boolean visual, String fileName) {
+	public void runGameTimedAndRecorded(
+			PacManController pacManController,
+			GhostController ghostController,
+			boolean visual,
+			String fileName) {
 		StringBuilder history = new StringBuilder();
 		int lastLevel = 0;
 		boolean firstWrite = false; // this makes sure the content of any
@@ -260,8 +287,8 @@ public class Exec {
 		if (visual) {
 			gv = new GameView(game).showGame();
 
-			if (pacManController instanceof Human){
-				Human con = new Human();
+			if (pacManController instanceof Human) {
+				final Human con = new Human();
 				pacMan = new PacMan(con);
 				gv.getMainFrame().getButton().addKeyListener(con);
 			}
@@ -273,16 +300,18 @@ public class Exec {
 
 			try {
 				Thread.sleep(G.DELAY);
-			} catch (InterruptedException e) {
+			} catch (final InterruptedException e) {
 				e.printStackTrace();
 			}
 
-			int[] actionsTaken = game.advanceGame(pacDir, ghostDirs);
+			final int[] actionsTaken = game.advanceGame(pacDir, ghostDirs);
 
 			if (visual)
 				gv.repaint();
 
-			history = addActionsToString(history, actionsTaken,
+			history = addActionsToString(
+					history,
+					actionsTaken,
 					game.getCurLevel() == lastLevel);
 
 			// saves actions after every level
@@ -306,30 +335,32 @@ public class Exec {
 	 * class Replay which may also be used to load the actions from file.
 	 */
 	public void replayGame(String fileName) {
-		_RG_ game = new _RG_();
+		final _RG_ game = new _RG_();
 		game.newGame();
 
-		Replay replay = new Replay(fileName);
-		PacManController pacManController = replay.getPacMan();
-		GhostController ghostController = replay.getGhosts();
+		final Replay replay = new Replay(fileName);
+		final PacManController pacManController = replay.getPacMan();
+		final GhostController ghostController = replay.getGhosts();
 
-		GameView gv = new GameView(game).showGame();
+		final GameView gv = new GameView(game).showGame();
 
 		while (!game.gameOver()) {
-			game.advanceGame(pacManController.getAction(game.copy(), 0),
+			game.advanceGame(
+					pacManController.getAction(game.copy(), 0),
 					ghostController.getActions(game.copy(), 0));
 
 			gv.repaint();
 
 			try {
 				Thread.sleep(G.DELAY);
-			} catch (Exception e) {
-			}
+			} catch (final Exception e) {}
 		}
 	}
 
-	private StringBuilder addActionsToString(StringBuilder history,
-			int[] actionsTaken, boolean newLine) {
+	private StringBuilder addActionsToString(
+			StringBuilder history,
+			int[] actionsTaken,
+			boolean newLine) {
 		history.append((game.getTotalTime() - 1) + "\t" + actionsTaken[0]
 				+ "\t");
 
@@ -361,15 +392,15 @@ public class Exec {
 	 * updates the directions for Exec to parse to the game.
 	 */
 	public class PacMan extends Thread {
-		private PacManController pacMan;
-		private boolean alive;
+		private final PacManController	pacMan;
+		private boolean					alive;
 
 		public PacMan(PacManController pacMan) {
 			this.pacMan = pacMan;
 			alive = true;
 			start();
 		}
-		
+
 		public synchronized void kill() {
 			alive = false;
 			notify();
@@ -387,9 +418,10 @@ public class Exec {
 						wait();
 					}
 
-					setPacDir(pacMan.getAction(game.copy(),
+					setPacDir(pacMan.getAction(
+							game.copy(),
 							System.currentTimeMillis() + G.DELAY));
-				} catch (InterruptedException e) {
+				} catch (final InterruptedException e) {
 					e.printStackTrace();
 				}
 			}
@@ -401,8 +433,8 @@ public class Exec {
 	 * updates the directions for Exec to parse to the game.
 	 */
 	public class Ghosts extends Thread {
-		private GhostController ghosts;
-		private boolean alive;
+		private final GhostController	ghosts;
+		private boolean					alive;
 
 		public Ghosts(GhostController ghosts) {
 			this.ghosts = ghosts;
@@ -427,9 +459,10 @@ public class Exec {
 						wait();
 					}
 
-					setGhostDirs(ghosts.getActions(game.copy(),
+					setGhostDirs(ghosts.getActions(
+							game.copy(),
 							System.currentTimeMillis() + G.DELAY));
-				} catch (InterruptedException e) {
+				} catch (final InterruptedException e) {
 					e.printStackTrace();
 				}
 			}

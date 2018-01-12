@@ -1,15 +1,25 @@
 package game.player.pacman;
 
+import java.util.Arrays;
+import java.util.List;
+
 import game.core.Game;
 import game.core.Game.DM;
 import gui.AbstractPlayer;
 
 public class PacmanGroup6 extends AbstractPlayer {
 
+	PacmanNeuralNetwork			curPNN;
+	List<PacmanNeuralNetwork>	generation;
+
+	public PacmanGroup6() {
+		nextNN();
+	}
+
 	@Override
 	public int getAction(Game game, long timeDue) {
 		// TODO Auto-generated method stub
-		return 0;
+		return curPNN.output(game);
 	}
 
 	@Override
@@ -24,7 +34,7 @@ public class PacmanGroup6 extends AbstractPlayer {
 		 */
 		private static final float	BIAS				= 1f;
 
-		private static final int	INPUT_COUNT			= 20;
+		private static final int	INPUT_COUNT			= 48;
 		private static final int	OUTPUT_COUNT		= 4;
 		/**
 		 * Rule of Thumb: 1 Hidden layer, number of perceptrons: mean of #inputs
@@ -35,6 +45,8 @@ public class PacmanGroup6 extends AbstractPlayer {
 
 		private final float[][]		hiddenWeights;
 		private final float[][]		outputWeights;
+
+		private double				score				= 0;
 
 		public PacmanNeuralNetwork() {
 			// one weight set/vector for each hidden perceptron (fully
@@ -72,6 +84,7 @@ public class PacmanGroup6 extends AbstractPlayer {
 			}
 		}
 
+		private float[]			inputValues;
 		/**
 		 * Used to store perceptron values when calling output.
 		 */
@@ -89,6 +102,11 @@ public class PacmanGroup6 extends AbstractPlayer {
 		 *         checked)
 		 */
 		public int output(Game game) {
+			if (inputValues == null)
+				inputValues = calculateInputs(game, null);
+			else
+				calculateInputs(game, inputValues);
+
 			float pValue;
 			for (int i = 0; i < hiddenPerceptronValues.length; i++) {
 				// reset perceptronValue
@@ -98,8 +116,9 @@ public class PacmanGroup6 extends AbstractPlayer {
 				 * for each weight and input add the product to our hidden
 				 * perceptron output
 				 */
-				for (int w = 0; w < hiddenWeights[i].length; w++) {
-					pValue += hiddenWeights[i][w] * getInput(game, w);
+				pValue += hiddenWeights[i][0] * BIAS;
+				for (int w = 1; w < hiddenWeights[i].length; w++) {
+					pValue += hiddenWeights[i][w] * inputValues[w - 1];
 				}
 
 				pValue = sigmoid(pValue);
@@ -150,21 +169,108 @@ public class PacmanGroup6 extends AbstractPlayer {
 		 */
 		float[] calculateInputs(Game game, float[] inputArray) {
 			/*
-			 * If non-existant, create a new Array.
+			 * If non-existant, create a new Array. Else clear exisiting one.
 			 */
 			if (inputArray == null)
 				inputArray = new float[INPUT_COUNT];
-
+			else
+				Arrays.fill(inputArray, 0);
 			/*
 			 * Continuously increases the array index count
 			 */
 			int index = 0;
 
-			for (int ghost = 0; ghost < game.NUM_GHOSTS; ghost++) {
+			/*
+			 * Store for performance - this will spare some method calls
+			 */
+			final int pacmanLocation = game.getCurPacManLoc();
+
+			/*
+			 * get all active pills and calculate, which one is the nearest we
+			 * want to know the distance and the direction to move towards this
+			 * pill
+			 */
+			final int[] activePills = game.getPillIndicesActive();
+			final int nearestPill = game
+					.getTarget(pacmanLocation, activePills, true, DM.PATH);
+
+			inputArray[index++] = game
+					.getPathDistance(pacmanLocation, nearestPill);
+			inputArray[index++] = game
+					.getNextPacManDir(nearestPill, true, DM.PATH);
+
+			/*
+			 * get all active power pills and proceed as with normal pills above
+			 */
+			final int[] activePowerPills = game.getPowerPillIndicesActive();
+			final int nearestPowerPill = game
+					.getTarget(pacmanLocation, activePowerPills, true, DM.PATH);
+
+			inputArray[index++] = game
+					.getPathDistance(pacmanLocation, nearestPowerPill);
+			inputArray[index++] = game
+					.getNextPacManDir(nearestPowerPill, true, DM.PATH);
+
+			/*
+			 * Measure, in which directions the pacman may go. Possible
+			 * directions are set to 1. Otherwise, the value will stay at 0
+			 */
+			for (final int direction : game.getPossiblePacManDirs(true)) {
+				switch (direction) {
+					case Game.LEFT :
+						inputArray[index] = 1;
+						break;
+					case Game.RIGHT :
+						inputArray[index + 1] = 1;
+						break;
+					case Game.UP :
+						inputArray[index + 2] = 1;
+						break;
+					case Game.DOWN :
+						inputArray[index + 3] = 1;
+						break;
+				}
+			}
+			index += 4;
+
+			for (int ghost = 0; ghost < Game.NUM_GHOSTS; ghost++) {
+				final int curGhostLoc = game.getCurGhostLoc(ghost);
+
+				// ghost left
 				inputArray[index++] = game.getNextPacManDir(
-						game.getCurGhostLoc(0),
+						curGhostLoc,
 						true,
 						DM.PATH) == Game.LEFT ? 1 : 0;
+				// ghost right
+				inputArray[index++] = game.getNextPacManDir(
+						curGhostLoc,
+						true,
+						DM.PATH) == Game.RIGHT ? 1 : 0;
+				// ghost above
+				inputArray[index++] = game.getNextPacManDir(
+						curGhostLoc,
+						true,
+						DM.PATH) == Game.UP ? 1 : 0;
+				// ghost below
+				inputArray[index++] = game.getNextPacManDir(
+						curGhostLoc,
+						true,
+						DM.PATH) == Game.DOWN ? 1 : 0;
+
+				// ghost to left
+				inputArray[index++] = curGhostLoc == Game.LEFT ? 1 : 0;
+				// ghost to right
+				inputArray[index++] = curGhostLoc == Game.RIGHT ? 1 : 0;
+				// ghost to top
+				inputArray[index++] = curGhostLoc == Game.UP ? 1 : 0;
+				// ghost to bottom
+				inputArray[index++] = curGhostLoc == Game.DOWN ? 1 : 0;
+
+				// ghost distance
+				inputArray[index++] = game
+						.getPathDistance(pacmanLocation, curGhostLoc);
+				// ghost edible time in s
+				inputArray[index++] = game.getEdibleTime(ghost) / 1000f;
 			}
 
 			return inputArray;
@@ -219,5 +325,28 @@ public class PacmanGroup6 extends AbstractPlayer {
 		float sigmoid(float x) {
 			return (float) (1 / (1 + Math.exp(-x)));
 		}
+
+		public double getScore() {
+			return score;
+		}
+
+		public void setScore(double score) {
+			this.score = score;
+		}
+	}
+
+	public void score(double runExperiment) {
+		// TODO Auto-generated method stub
+
+	}
+
+	public void nextNN() {
+		curPNN = new PacmanNeuralNetwork();
+		generation.a
+	}
+
+	public void nextGeneration() {
+		// TODO Auto-generated method stub
+
 	}
 }
