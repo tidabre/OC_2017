@@ -1,6 +1,8 @@
 package game;
 
 import java.awt.event.ActionEvent;
+import java.util.ArrayList;
+import java.util.List;
 
 import game.controllers.GhostController;
 import game.controllers.Human;
@@ -10,6 +12,7 @@ import game.core.GameView;
 import game.core.Replay;
 import game.core._G_;
 import game.core._RG_;
+import game.player.ghost.Legacy;
 import game.player.pacman.PacmanGroup6;
 
 /*
@@ -28,17 +31,7 @@ public class Exec {
 	public static void main(String[] args) {
 		final Exec exec = new Exec();
 
-		final int trainingsPerNN = 5;
-		final PacmanGroup6 pacmanTrainer = new PacmanGroup6();
-
-		// pacmanTrainer.score(
-		// exec.runExperiment(
-		// pacmanTrainer,
-		// new Legacy(),
-		// trainingsPerNN));
-		pacmanTrainer.nextNN();
-
-		pacmanTrainer.nextGeneration();
+		trainPacman(exec);
 
 		// run game without time limits (un-comment if required)
 		// exec.runGame(new RandomPacMan(),new RandomGhosts(),true,G.DELAY);
@@ -63,7 +56,123 @@ public class Exec {
 		// this allows to select a player from GUI, the players must be save in
 		// the package game.player.player and the ghosts in the package
 		// game.player.ghosts
-		exec.runGameMainFrame();
+		// exec.runGameMainFrame();
+	}
+
+	private static void trainPacman(Exec exec) {
+		final int generationSize = 500;
+		final int trainingsPerNN = 5;
+		final int generationCount = 1;
+		final GhostController ghost = new Legacy();
+
+		double highscore = Double.NEGATIVE_INFINITY;
+		PacmanGroup6 bestPacman = null;
+
+		/*
+		 * Init an initial random generation
+		 */
+		List<PacmanGroup6> currentGeneration = new ArrayList<PacmanGroup6>(
+				generationSize);
+		PacmanGroup6 newPacman;
+		for (int i = 0; i < generationSize; i++) {
+			newPacman = new PacmanGroup6();
+			newPacman.initRandom();
+			currentGeneration.add(newPacman);
+		}
+
+		for (int gen = 0; gen < generationCount; gen++) {
+			// sum of all scores
+			int accumulatedScore = 0;
+
+			// score each individual (in parrallel when possible)
+			currentGeneration.parallelStream().forEach(pacman -> {
+				pacman.setScore(exec.runExperiment(
+						pacman,
+						ghost,
+						trainingsPerNN));
+
+			});
+
+			// calculate cumulative scores for roulette wheel selection (this
+			// needs to be done in order - no speedup with parallel execution)
+			for (final PacmanGroup6 pacman : currentGeneration) {
+				accumulatedScore += pacman.score;
+				pacman.setAccumulatedScore(accumulatedScore);
+
+				if (pacman.score > highscore) {
+					highscore = pacman.score;
+					bestPacman = pacman;
+				}
+			}
+
+			// generate a new generation by selecting the fittest parents with
+			// rouletteWheel selection
+			final List<PacmanGroup6> newGeneration = new ArrayList<PacmanGroup6>(
+					generationSize);
+			for (int i = 0; i < generationSize / 2; i++) {
+				PacmanGroup6[] pacmanPair = rouletteWheel(
+						currentGeneration,
+						accumulatedScore,
+						2);
+				pacmanPair = PacmanGroup6
+						.createChilds(pacmanPair[0], pacmanPair[1]);
+
+				newGeneration.add(pacmanPair[0]);
+				newGeneration.add(pacmanPair[1]);
+			}
+
+			currentGeneration = newGeneration;
+
+		}
+
+		exec.runGame(bestPacman, ghost, true, G.DELAY);
+	}
+
+	/**
+	 * Selects from this list with a probability based on the entities scores
+	 * 
+	 * @param scoredList
+	 *            a list with already scored entities
+	 * @param totalScore
+	 *            the total score of all entities in this list
+	 * @param count
+	 *            the number of desired entities
+	 * @return an array of size count with the chosen entities
+	 */
+	private static PacmanGroup6[] rouletteWheel(
+			List<PacmanGroup6> scoredList,
+			int totalScore,
+			int count) {
+		final PacmanGroup6[] resultArray = new PacmanGroup6[count];
+
+		for (int i = 0; i < count; i++) {
+			final double randomScore = Math.random() * totalScore;
+			int targetIndex = scoredList.size() / 2;
+			double indexStep = Math.ceil(scoredList.size() / 2.0);
+			PacmanGroup6 curPacman;
+
+			while (true) {
+				curPacman = scoredList.get(targetIndex);
+				if (randomScore > curPacman.accumulatedScore) {
+					// above range
+					targetIndex += indexStep;
+				} else if (randomScore < curPacman.accumulatedScore
+						- curPacman.score) {
+					// below range
+					targetIndex -= indexStep;
+				} else {
+					// in range
+					resultArray[i] = curPacman;
+					break;
+				}
+
+				indexStep = Math.ceil(indexStep / 2.0);
+				targetIndex = Math
+						.min(scoredList.size() - 1, Math.max(0, targetIndex));
+			}
+		}
+
+		return resultArray;
 	}
 
 	private void runGameMainFrame() {
@@ -71,7 +180,8 @@ public class Exec {
 		game.newGame();
 
 		gv = new GameView(game).showGame();
-		gv.getMainFrame().getButton()
+		gv
+				.getMainFrame().getButton()
 				.addActionListener(new java.awt.event.ActionListener() {
 					@Override
 					public void actionPerformed(
@@ -361,8 +471,8 @@ public class Exec {
 			StringBuilder history,
 			int[] actionsTaken,
 			boolean newLine) {
-		history.append((game.getTotalTime() - 1) + "\t" + actionsTaken[0]
-				+ "\t");
+		history.append((game.getTotalTime() - 1)
+				+ "\t" + actionsTaken[0] + "\t");
 
 		for (int i = 0; i < G.NUM_GHOSTS; i++)
 			history.append(actionsTaken[i + 1] + "\t");
