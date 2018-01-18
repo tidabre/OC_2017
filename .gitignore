@@ -1,0 +1,4 @@
+# never track build output
+bin
+.settings
+.project

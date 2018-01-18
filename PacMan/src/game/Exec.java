@@ -14,6 +14,17 @@ import game.core._G_;
 import game.core._RG_;
 import game.player.ghost.Legacy;
 import game.player.pacman.PacmanGroup6;
+import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.concurrent.Task;
+import javafx.scene.Scene;
+import javafx.scene.chart.LineChart;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart.Data;
+import javafx.scene.chart.XYChart.Series;
+import javafx.scene.control.ProgressBar;
+import javafx.scene.layout.BorderPane;
+import javafx.stage.Stage;
 
 /*
  * This class may be used to execute the game in timed or un-timed modes, with
@@ -29,9 +40,15 @@ public class Exec {
 	// Several options are listed - simply remove comments to use the option you
 	// want
 	public static void main(String[] args) {
-		final Exec exec = new Exec();
 
-		trainPacman(exec);
+		if (true) {
+			LineChartContainer.open();
+		} else {
+			final PacmanGroup6 p = new PacmanGroup6();
+			p.load("winner");
+			final Exec exec = new Exec();
+			exec.runGame(p, new Legacy(), true, G.DELAY);
+		}
 
 		// run game without time limits (un-comment if required)
 		// exec.runGame(new RandomPacMan(),new RandomGhosts(),true,G.DELAY);
@@ -56,17 +73,21 @@ public class Exec {
 		// this allows to select a player from GUI, the players must be save in
 		// the package game.player.player and the ghosts in the package
 		// game.player.ghosts
+		// final Exec exec = new Exec();
 		// exec.runGameMainFrame();
 	}
 
 	private static void trainPacman(Exec exec) {
-		final int generationSize = 500;
+		final int generationSize = 2000;
 		final int trainingsPerNN = 5;
-		final int generationCount = 1;
+		final int generationCount = 500;
 		final GhostController ghost = new Legacy();
 
 		double highscore = Double.NEGATIVE_INFINITY;
+		int highscoreGeneration = 0;
 		PacmanGroup6 bestPacman = null;
+
+		final double progressPerStep = 1d / (generationSize);
 
 		/*
 		 * Init an initial random generation
@@ -81,29 +102,69 @@ public class Exec {
 		}
 
 		for (int gen = 0; gen < generationCount; gen++) {
-			// sum of all scores
-			int accumulatedScore = 0;
+			// for each new generation reset progress bar
+			LineChartContainer.progress.setProgress(0);
 
-			// score each individual (in parrallel when possible)
+			if ((gen + 1) % 100 == 0) {
+				PacmanGroup6.baseDir = "D://tmp/Pacman/Gen" + (gen + 1);
+				for (int i = 0; i < currentGeneration.size(); i++) {
+					currentGeneration.get(i)
+							.save(String.format("Pacman%04d", i));
+				}
+			}
+
+			System.out.println(String.format("#### Generation %02d ####", gen));
+
+			// score each individual (in parallel when possible)
 			currentGeneration.parallelStream().forEach(pacman -> {
 				pacman.setScore(exec.runExperiment(
 						pacman,
 						ghost,
 						trainingsPerNN));
+				LineChartContainer.progress.setProgress(
+						LineChartContainer.progress.getProgress()
+								+ progressPerStep);
 
 			});
 
 			// calculate cumulative scores for roulette wheel selection (this
 			// needs to be done in order - no speedup with parallel execution)
+			// also calculate some statistics
+			double generationMax = Double.NEGATIVE_INFINITY;
+			double generationMin = Double.POSITIVE_INFINITY;
+
+			// sum of all scores
+			int accumulatedScore = 0;
 			for (final PacmanGroup6 pacman : currentGeneration) {
 				accumulatedScore += pacman.score;
 				pacman.setAccumulatedScore(accumulatedScore);
 
 				if (pacman.score > highscore) {
 					highscore = pacman.score;
+					highscoreGeneration = gen;
 					bestPacman = pacman;
+
+					// save best so far
+					PacmanGroup6.baseDir = "D://tmp/Pacman";
+					bestPacman.save("winner");
 				}
+
+				generationMax = Math.max(generationMax, pacman.score);
+				generationMin = Math.min(generationMin, pacman.score);
 			}
+			System.out.println(String.format(
+					"Min:     %07.2f\n"
+							+ "Average: %07.2f\n"
+							+ "Max    : %07.2f\n",
+					generationMin,
+					(double) accumulatedScore / currentGeneration.size(),
+					generationMax));
+
+			LineChartContainer.updateOnPlatform(
+					generationMin,
+					generationMax,
+					accumulatedScore / currentGeneration.size(),
+					gen);
 
 			// generate a new generation by selecting the fittest parents with
 			// rouletteWheel selection
@@ -122,10 +183,17 @@ public class Exec {
 			}
 
 			currentGeneration = newGeneration;
-
 		}
 
-		exec.runGame(bestPacman, ghost, true, G.DELAY);
+		System.out.print(
+				"\nFinished training for " + generationCount
+						+ " Generations. Best Pacman is from Generating "
+						+ highscoreGeneration + " and scored "
+						+ bestPacman.score
+						+ " Points.\nGeneration best replay from several runs...");
+
+		PacmanGroup6.baseDir = "D://tmp/Pacman";
+		bestPacman.save("winner");
 	}
 
 	/**
@@ -151,7 +219,9 @@ public class Exec {
 			double indexStep = Math.ceil(scoredList.size() / 2.0);
 			PacmanGroup6 curPacman;
 
-			while (true) {
+			int tries = 0;
+			while (tries < scoredList.size() / 2) {
+				tries++;
 				curPacman = scoredList.get(targetIndex);
 				if (randomScore > curPacman.accumulatedScore) {
 					// above range
@@ -169,6 +239,20 @@ public class Exec {
 				indexStep = Math.ceil(indexStep / 2.0);
 				targetIndex = Math
 						.min(scoredList.size() - 1, Math.max(0, targetIndex));
+			}
+
+			if (resultArray[i] == null) {
+				// above algorithm bugged... use brute force :D
+				System.err.println("Bug in roulette Wheel Selection...");
+				for (final PacmanGroup6 cur : scoredList) {
+					if (randomScore <= cur.accumulatedScore
+							&& randomScore >= cur.accumulatedScore
+									- cur.score) {
+						// in range
+						resultArray[i] = cur;
+						break;
+					}
+				}
 			}
 		}
 
@@ -269,6 +353,8 @@ public class Exec {
 			GhostController ghostController,
 			int trials) {
 		double avgScore = 0;
+		double avgTime = 0;
+		double avgPillsLeftover = 0;
 
 		final _G_ gameTmp = new _G_();
 		final int training = 1;
@@ -276,21 +362,24 @@ public class Exec {
 		for (int i = 0; i < trials; i++) {
 			gameTmp.newGame();
 
-			while (!gameTmp.gameOver()) {
+			while (!gameTmp.gameOver() && gameTmp.getTotalTime() < 5000) {
 				final long due = System.currentTimeMillis() + G.DELAY;
 				gameTmp.advanceGame(
 						pacManController.getAction(gameTmp.copy(), due),
 						ghostController.getActions(gameTmp.copy(), due));
 			}
-
 			avgScore += gameTmp.getScore();
+			avgTime += gameTmp.getTotalTime();
+			avgPillsLeftover += gameTmp.getNumActivePills()
+					+ gameTmp.getNumActivePowerPills() * 10;
 			// System.out.println("Training "+training+++" Punkte:
 			// "+gameTmp.getScore());
 		}
 
 		// System.out.println("Gesamtpunkte/Versuche: "+avgScore+"/"+trials+"
 		// "+avgScore / trials);
-		return avgScore / trials;
+		// return (avgScore - avgPillsLeftover * 10) / trials + 4000;
+		return (avgScore) / trials;
 	}
 
 	/*
@@ -377,7 +466,7 @@ public class Exec {
 	 * Runs a game and records all directions taken by all controllers - the
 	 * data may then be used to replay any game saved using replayGame(-).
 	 */
-	public void runGameTimedAndRecorded(
+	public double runGameTimedAndRecorded(
 			PacManController pacManController,
 			GhostController ghostController,
 			boolean visual,
@@ -438,6 +527,8 @@ public class Exec {
 
 		pacMan.kill();
 		ghosts.kill();
+
+		return game.getScore();
 	}
 
 	/*
@@ -576,6 +667,84 @@ public class Exec {
 					e.printStackTrace();
 				}
 			}
+		}
+	}
+
+	public static class LineChartContainer extends Application {
+
+		final static Series<Number, Number>	minSeries		= new Series<>();
+		final static Series<Number, Number>	averageSeries	= new Series<>();
+		final static Series<Number, Number>	maxSeries		= new Series<>();
+
+		static ProgressBar					progress		= null;
+
+		public static void updateOnPlatform(
+				double min,
+				double max,
+				double avg,
+				double gen) {
+			Platform.runLater(new Runnable() {
+				@Override
+				public void run() {
+					LineChartContainer.minSeries.getData()
+							.add(new Data<Number, Number>(gen, min));
+					LineChartContainer.averageSeries.getData().add(
+							new Data<Number, Number>(gen, avg));
+					LineChartContainer.maxSeries.getData()
+							.add(new Data<Number, Number>(gen, max));
+				}
+			});
+		}
+
+		@Override
+		public void start(Stage stage) {
+			progress = new ProgressBar(0);
+
+			stage.setTitle("Line Chart Sample");
+			// defining the axes
+			final NumberAxis xAxis = new NumberAxis();
+			final NumberAxis yAxis = new NumberAxis();
+			xAxis.setLabel("Generation");
+			// creating the chart
+			final LineChart<Number, Number> lineChart = new LineChart<Number, Number>(
+					xAxis, yAxis);
+
+			lineChart.setTitle("Fitnessverlauf");
+			// defining series
+			minSeries.setName("min. Fitness");
+			averageSeries.setName("avg. Fitness");
+			maxSeries.setName("max. Fitness");
+
+			final BorderPane root = new BorderPane();
+			root.setCenter(lineChart);
+			root.setBottom(progress);
+			progress.setMaxWidth(Double.MAX_VALUE);
+
+			final Scene scene = new Scene(root, 800, 600);
+			lineChart.getData().add(minSeries);
+			lineChart.getData().add(averageSeries);
+			lineChart.getData().add(maxSeries);
+
+			stage.setScene(scene);
+			stage.show();
+
+			final Exec exec = new Exec();
+
+			final Task<Void> task = new Task<Void>() {
+				@Override
+				protected Void call() throws Exception {
+					trainPacman(exec);
+					return null;
+				}
+			};
+
+			final Thread th = new Thread(task);
+			th.setDaemon(true);
+			th.start();
+		}
+
+		public static void open() {
+			launch();
 		}
 	}
 }
