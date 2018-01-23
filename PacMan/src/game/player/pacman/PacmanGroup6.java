@@ -27,6 +27,16 @@ public class PacmanGroup6 extends AbstractPlayer {
 	private static final float	BIAS					= 1f;
 
 	/**
+	 * The radius of all randomly generated weight values.
+	 */
+	private static final float	WEIGHT_RADIUS			= 4f;
+	
+	/**
+	 * Whether or not the output should be checked for validity.
+	 */
+	private static final boolean CHECK_DIRECTION		= true;
+	
+	/**
 	 * Apply this factor, to get some kind of normalized distance
 	 */
 	public static final float	DIST_CORRECTION			= 100f;
@@ -110,8 +120,8 @@ public class PacmanGroup6 extends AbstractPlayer {
 					/*
 					 * shift range to [-4,4]
 					 */
-					childs[0].hiddenWeights[i][w] = RAND.nextFloat() * 8 - 4;
-					childs[1].hiddenWeights[i][w] = RAND.nextFloat() * 8 - 4;
+					childs[0].hiddenWeights[i][w] = RAND.nextFloat() * 2*WEIGHT_RADIUS - WEIGHT_RADIUS;
+					childs[1].hiddenWeights[i][w] = RAND.nextFloat() * 2*WEIGHT_RADIUS - WEIGHT_RADIUS;
 				} else {
 					/*
 					 * in case of no mutation, just copy
@@ -140,10 +150,10 @@ public class PacmanGroup6 extends AbstractPlayer {
 				 */
 				if (RAND.nextDouble() < BASE_MUTATION_RATE) {/*
 																 * shift range
-																 * to [-1,1]
+																 * to [-4,4]
 																 */
-					childs[0].outputWeights[i][w] = RAND.nextFloat() * 2 - 1;
-					childs[0].outputWeights[i][w] = RAND.nextFloat() * 2 - 1;
+					childs[0].outputWeights[i][w] = RAND.nextFloat() * 2*WEIGHT_RADIUS - WEIGHT_RADIUS;
+					childs[0].outputWeights[i][w] = RAND.nextFloat() * 2*WEIGHT_RADIUS - WEIGHT_RADIUS;
 				} else {
 					/*
 					 * in case of no mutation, just copy
@@ -188,20 +198,19 @@ public class PacmanGroup6 extends AbstractPlayer {
 		 */
 		for (int i = 0; i < hiddenWeights.length; i++) {
 			for (int j = 0; j < INPUT_COUNT + 1; j++) {
-				hiddenWeights[i][j] = (float) (RAND.nextDouble() * 8) - 4f;
+				hiddenWeights[i][j] = (float) (RAND.nextDouble() * 2*WEIGHT_RADIUS) - WEIGHT_RADIUS;
 			}
 		}
 
 		for (int i = 0; i < outputWeights.length; i++) {
 			for (int j = 0; j < hiddenWeights.length + 1; j++) {
-				outputWeights[i][j] = (float) (RAND.nextDouble() * 8) - 4f;
+				outputWeights[i][j] = (float) (RAND.nextDouble() * 2*WEIGHT_RADIUS) - WEIGHT_RADIUS;
 			}
 		}
 	}
 
 	@Override
 	public int getAction(Game game, long timeDue) {
-		// TODO Auto-generated method stub
 		return output(game);
 	}
 
@@ -301,14 +310,24 @@ public class PacmanGroup6 extends AbstractPlayer {
 		int resultDirection = 0;
 		for (int i = 0; i < outputPerceptronValues.length; i++) {
 			if (outputPerceptronValues[i] > result) {
-				result = outputPerceptronValues[i];
-				resultDirection = i;
+				if(!CHECK_DIRECTION || directionValid(i, game.getPossiblePacManDirs(true))){
+					result = outputPerceptronValues[i];
+					resultDirection = i;
+				}
 			}
 		}
 
 		return resultDirection;
 	}
 
+	boolean directionValid(int direction, int[] allowedDirections){
+		for(int dir : allowedDirections)
+			if(dir==direction)
+				return true;
+					
+		return false;
+	}
+	
 	/**
 	 * Returns the inputs for this Pacman Neural-Net. Creates a new array of
 	 * matching size, if inputArray is empty.
@@ -423,8 +442,8 @@ public class PacmanGroup6 extends AbstractPlayer {
 			inputArray[index++] = (SIGHT_RANGE - game
 					.getPathDistance(pacmanLocation, curGhostLoc))
 					/ DIST_CORRECTION;
-			// ghost edible time in s
-			inputArray[index++] = game.getEdibleTime(ghost) / 1000f;
+			// ghost edible
+			inputArray[index++] = game.getEdibleTime(ghost)>0? 1:0;
 		}
 
 		return inputArray;
