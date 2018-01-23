@@ -16,12 +16,151 @@ import gui.AbstractPlayer;
 
 public class PacmanGroup6 extends AbstractPlayer {
 
+	/**
+	 * Base directory to store pacman data
+	 */
+	static public String		baseDir					= "D://tmp/Pacman";
+
+	/**
+	 * The Bias value to be used
+	 */
+	private static final float	BIAS					= 1f;
+
+	/**
+	 * Apply this factor, to get some kind of normalized distance
+	 */
+	public static final float	DIST_CORRECTION			= 100f;
+
+	/**
+	 * The distance, pacman can "look"
+	 */
+	public static final float	SIGHT_RANGE				= 100f;
+
 	private final static Random	RAND					= new Random(
 			System.currentTimeMillis());
 
 	// public static final double MUTATION_PROBABILITY = 0.001;
 	// public static final double MUTATION_PROBABILITY = 0.01;
-	public static final double	MUTATION_PROBABILITY	= 0.001;
+	public static double		BASE_MUTATION_RATE	= 0.0015;
+
+	private static final int	INPUT_COUNT				= 54;
+
+	private static final int	OUTPUT_COUNT			= 4;
+
+	/**
+	 * Rule of Thumb: 1 Hidden layer, number of perceptrons: mean of #inputs and
+	 * #outputs
+	 */
+	private static final int	HIDDEN_PERCEPTRONS		= (INPUT_COUNT
+			+ OUTPUT_COUNT) / 2;											// /
+																			// 2;
+
+	public float[][]			hiddenWeights;
+
+	public float[][]			outputWeights;
+
+	/**
+	 * Stores the score of this Instance
+	 */
+	public double				score					= 0;
+
+	/**
+	 * Stores score information of previous Instances for the GA-Algorithm
+	 */
+	public double				accumulatedScore		= 0;
+
+	private float[]				inputValues;
+
+	/**
+	 * Used to store perceptron values when calling output.
+	 */
+	private final float[]		hiddenPerceptronValues;
+
+	/**
+	 * Used to store perceptron values when calling output.
+	 */
+	private final float[]		outputPerceptronValues;
+
+	/**
+	 * Creates exactly two new {@link PacmanGroup6} instances
+	 * 
+	 * @param mother
+	 * @param father
+	 * @return the array of child instances with length 2
+	 */
+	public static PacmanGroup6[] createChilds(
+			PacmanGroup6 mother,
+			PacmanGroup6 father,
+			double mutationRate) {
+		final PacmanGroup6[] childs = {
+				new PacmanGroup6(), new PacmanGroup6()
+		};
+
+		final int splitPointHiddenWeights = RAND.nextInt(INPUT_COUNT + 1);
+
+		final int lenHidden = childs[0].hiddenWeights.length;
+		final int lenHiddenWeights = childs[0].hiddenWeights[0].length;
+
+		for (int i = 0; i < lenHidden; i++) {
+			for (int w = 0; w < lenHiddenWeights; w++) {
+				/*
+				 * check, if the weight should be mutated
+				 */
+				if (RAND.nextDouble() < mutationRate) {
+					/*
+					 * shift range to [-4,4]
+					 */
+					childs[0].hiddenWeights[i][w] = RAND.nextFloat() * 8 - 4;
+					childs[1].hiddenWeights[i][w] = RAND.nextFloat() * 8 - 4;
+				} else {
+					/*
+					 * in case of no mutation, just copy
+					 */
+					if (i < splitPointHiddenWeights) {
+						childs[0].hiddenWeights[i][w] = mother.hiddenWeights[i][w];
+						childs[1].hiddenWeights[i][w] = father.hiddenWeights[i][w];
+					} else {
+						childs[0].hiddenWeights[i][w] = father.hiddenWeights[i][w];
+						childs[1].hiddenWeights[i][w] = mother.hiddenWeights[i][w];
+					}
+				}
+			}
+		}
+
+		final int splitPointOutputWeights = RAND
+				.nextInt(HIDDEN_PERCEPTRONS + 1);
+
+		final int lenOutput = childs[0].outputWeights.length;;
+		final int lenOutputWeights = childs[0].outputWeights[0].length;
+
+		for (int i = 0; i < lenOutput; i++) {
+			for (int w = 0; w < lenOutputWeights; w++) {
+				/*
+				 * check, if the weight should be mutated
+				 */
+				if (RAND.nextDouble() < BASE_MUTATION_RATE) {/*
+																 * shift range
+																 * to [-1,1]
+																 */
+					childs[0].outputWeights[i][w] = RAND.nextFloat() * 2 - 1;
+					childs[0].outputWeights[i][w] = RAND.nextFloat() * 2 - 1;
+				} else {
+					/*
+					 * in case of no mutation, just copy
+					 */
+					if (i < splitPointOutputWeights) {
+						childs[0].outputWeights[i][w] = mother.outputWeights[i][w];
+						childs[1].outputWeights[i][w] = father.outputWeights[i][w];
+					} else {
+						childs[0].outputWeights[i][w] = father.outputWeights[i][w];
+						childs[1].outputWeights[i][w] = mother.outputWeights[i][w];
+					}
+				}
+			}
+		}
+
+		return childs;
+	}
 
 	public PacmanGroup6() {
 		// one weight set/vector for each hidden perceptron (fully
@@ -39,7 +178,39 @@ public class PacmanGroup6 extends AbstractPlayer {
 		initRandom();
 	}
 
-	static public String baseDir = "D://tmp/Pacman";
+	/**
+	 * Random initialization of all weights in this network.
+	 */
+	public void initRandom() {
+		/*
+		 * Make use of the pow function to reduce probability for weight values
+		 * close to 1. TODO: change?
+		 */
+		for (int i = 0; i < hiddenWeights.length; i++) {
+			for (int j = 0; j < INPUT_COUNT + 1; j++) {
+				hiddenWeights[i][j] = (float) (RAND.nextDouble() * 8) - 4f;
+			}
+		}
+
+		for (int i = 0; i < outputWeights.length; i++) {
+			for (int j = 0; j < hiddenWeights.length + 1; j++) {
+				outputWeights[i][j] = (float) (RAND.nextDouble() * 8) - 4f;
+			}
+		}
+	}
+
+	@Override
+	public int getAction(Game game, long timeDue) {
+		// TODO Auto-generated method stub
+		return output(game);
+	}
+
+	@Override
+	public String getGroupName() {
+		// TODO Auto-generated method stub
+		return "PacmanGroup6";
+	}
+
 	public void save(String name) {
 		try {
 			new File(baseDir).mkdirs();
@@ -75,75 +246,6 @@ public class PacmanGroup6 extends AbstractPlayer {
 			System.err.println("Data format is corrupt.");
 		}
 	}
-
-	@Override
-	public int getAction(Game game, long timeDue) {
-		// TODO Auto-generated method stub
-		return output(game);
-	}
-
-	@Override
-	public String getGroupName() {
-		// TODO Auto-generated method stub
-		return "PacmanGroup6";
-	}
-
-	/**
-	 * The Bias value to be used
-	 */
-	private static final float	BIAS				= 1f;
-
-	private static final int	INPUT_COUNT			= 54;
-	private static final int	OUTPUT_COUNT		= 4;
-	/**
-	 * Rule of Thumb: 1 Hidden layer, number of perceptrons: mean of #inputs and
-	 * #outputs
-	 */
-	private static final int	HIDDEN_PERCEPTRONS	= (INPUT_COUNT
-			+ OUTPUT_COUNT) / 2;									// / 2;
-
-	private float[][]			hiddenWeights;
-	private float[][]			outputWeights;
-
-	/**
-	 * Stores the score of this Instance
-	 */
-	public double				score				= 0;
-	/**
-	 * Stores score information of previous Instances for the GA-Algorithm
-	 */
-	public double				accumulatedScore	= 0;
-
-	/**
-	 * Random initialization of all weights in this network.
-	 */
-	public void initRandom() {
-		/*
-		 * Make use of the pow function to reduce probability for weight values
-		 * close to 1. TODO: change?
-		 */
-		for (int i = 0; i < hiddenWeights.length; i++) {
-			for (int j = 0; j < INPUT_COUNT + 1; j++) {
-				hiddenWeights[i][j] = (float) Math.pow(Math.random(), 2);
-			}
-		}
-
-		for (int i = 0; i < outputWeights.length; i++) {
-			for (int j = 0; j < hiddenWeights.length + 1; j++) {
-				outputWeights[i][j] = (float) Math.pow(Math.random(), 2);
-			}
-		}
-	}
-
-	private float[]			inputValues;
-	/**
-	 * Used to store perceptron values when calling output.
-	 */
-	private final float[]	hiddenPerceptronValues;
-	/**
-	 * Used to store perceptron values when calling output.
-	 */
-	private final float[]	outputPerceptronValues;
 
 	/**
 	 * Outputs the direction with the highest value generated by the network.
@@ -208,14 +310,6 @@ public class PacmanGroup6 extends AbstractPlayer {
 	}
 
 	/**
-	 * Apply this factor, to get some kind of normalized distance
-	 */
-	public static final float	distCorrection	= 100f;
-	/**
-	 * The distance, pacman can "look"
-	 */
-	public static final float	sightRange		= 100f;
-	/**
 	 * Returns the inputs for this Pacman Neural-Net. Creates a new array of
 	 * matching size, if inputArray is empty.
 	 * 
@@ -250,9 +344,9 @@ public class PacmanGroup6 extends AbstractPlayer {
 		final int nearestPill = game
 				.getTarget(pacmanLocation, activePills, true, DM.PATH);
 
-		inputArray[index++] = (sightRange
+		inputArray[index++] = (SIGHT_RANGE
 				- game.getPathDistance(pacmanLocation, nearestPill))
-				/ distCorrection;
+				/ DIST_CORRECTION;
 		final int toNearestPillDir = game
 				.getNextPacManDir(nearestPill, true, DM.PATH);
 
@@ -270,9 +364,9 @@ public class PacmanGroup6 extends AbstractPlayer {
 		final int toNearestPowerPillDir = game
 				.getNextPacManDir(nearestPowerPill, true, DM.PATH);
 
-		inputArray[index++] = (sightRange - game
+		inputArray[index++] = (SIGHT_RANGE - game
 				.getPathDistance(pacmanLocation, nearestPowerPill))
-				/ distCorrection;
+				/ DIST_CORRECTION;
 		inputArray[index++] = toNearestPowerPillDir == Game.LEFT ? 1 : 0;
 		inputArray[index++] = toNearestPowerPillDir == Game.RIGHT ? 1 : 0;
 		inputArray[index++] = toNearestPowerPillDir == Game.UP ? 1 : 0;
@@ -326,9 +420,9 @@ public class PacmanGroup6 extends AbstractPlayer {
 			inputArray[index++] = curGhostDir == Game.DOWN ? 1 : 0;
 
 			// ghost distance
-			inputArray[index++] = (sightRange - game
+			inputArray[index++] = (SIGHT_RANGE - game
 					.getPathDistance(pacmanLocation, curGhostLoc))
-					/ distCorrection;
+					/ DIST_CORRECTION;
 			// ghost edible time in s
 			inputArray[index++] = game.getEdibleTime(ghost) / 1000f;
 		}
@@ -346,86 +440,6 @@ public class PacmanGroup6 extends AbstractPlayer {
 
 	public void setScore(double score) {
 		this.score = score;
-	}
-
-	/**
-	 * Creates exactly two new {@link PacmanGroup6} instances
-	 * 
-	 * @param mother
-	 * @param father
-	 * @return the array of child instances with length 2
-	 */
-	public static PacmanGroup6[] createChilds(
-			PacmanGroup6 mother,
-			PacmanGroup6 father) {
-		final PacmanGroup6[] childs = {
-				new PacmanGroup6(), new PacmanGroup6()
-		};
-
-		final int splitPointHiddenWeights = RAND.nextInt(INPUT_COUNT + 1);
-
-		final int lenHidden = childs[0].hiddenWeights.length;
-		final int lenHiddenWeights = childs[0].hiddenWeights[0].length;
-
-		for (int i = 0; i < lenHidden; i++) {
-			for (int w = 0; w < lenHiddenWeights; w++) {
-				/*
-				 * check, if the weight should be mutated
-				 */
-				if (RAND.nextDouble() < MUTATION_PROBABILITY) {
-					/*
-					 * shift range to [-1,1]
-					 */
-					childs[0].hiddenWeights[i][w] = RAND.nextFloat() * 2 - 1;
-					childs[1].hiddenWeights[i][w] = RAND.nextFloat() * 2 - 1;
-				} else {
-					/*
-					 * in case of no mutation, just copy
-					 */
-					if (i < splitPointHiddenWeights) {
-						childs[0].hiddenWeights[i][w] = mother.hiddenWeights[i][w];
-						childs[1].hiddenWeights[i][w] = father.hiddenWeights[i][w];
-					} else {
-						childs[0].hiddenWeights[i][w] = father.hiddenWeights[i][w];
-						childs[1].hiddenWeights[i][w] = mother.hiddenWeights[i][w];
-					}
-				}
-			}
-		}
-
-		final int splitPointOutputWeights = RAND
-				.nextInt(HIDDEN_PERCEPTRONS + 1);
-
-		final int lenOutput = childs[0].outputWeights.length;;
-		final int lenOutputWeights = childs[0].outputWeights[0].length;
-
-		for (int i = 0; i < lenOutput; i++) {
-			for (int w = 0; w < lenOutputWeights; w++) {
-				/*
-				 * check, if the weight should be mutated
-				 */
-				if (RAND.nextDouble() < MUTATION_PROBABILITY) {/*
-																 * shift range
-																 * to [-1,1]
-																 */
-					childs[0].outputWeights[i][w] = RAND.nextFloat() * 2 - 1;
-					childs[0].outputWeights[i][w] = RAND.nextFloat() * 2 - 1;
-				} else {
-					/*
-					 * in case of no mutation, just copy
-					 */
-					if (i < splitPointOutputWeights) {
-						childs[0].outputWeights[i][w] = mother.outputWeights[i][w];
-						childs[1].outputWeights[i][w] = father.outputWeights[i][w];
-					} else {
-						childs[0].outputWeights[i][w] = father.outputWeights[i][w];
-						childs[1].outputWeights[i][w] = mother.outputWeights[i][w];
-					}
-				}
-			}
-		}
-
-		return childs;
 	}
 
 	public double getAccumulatedScore() {

@@ -22,8 +22,11 @@ import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart.Data;
 import javafx.scene.chart.XYChart.Series;
+import javafx.scene.control.Button;
 import javafx.scene.control.ProgressBar;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.stage.Stage;
 
 /*
@@ -40,7 +43,6 @@ public class Exec {
 	// Several options are listed - simply remove comments to use the option you
 	// want
 	public static void main(String[] args) {
-
 		if (true) {
 			LineChartContainer.open();
 		} else {
@@ -75,125 +77,6 @@ public class Exec {
 		// game.player.ghosts
 		// final Exec exec = new Exec();
 		// exec.runGameMainFrame();
-	}
-
-	private static void trainPacman(Exec exec) {
-		final int generationSize = 2000;
-		final int trainingsPerNN = 5;
-		final int generationCount = 500;
-		final GhostController ghost = new Legacy();
-
-		double highscore = Double.NEGATIVE_INFINITY;
-		int highscoreGeneration = 0;
-		PacmanGroup6 bestPacman = null;
-
-		final double progressPerStep = 1d / (generationSize);
-
-		/*
-		 * Init an initial random generation
-		 */
-		List<PacmanGroup6> currentGeneration = new ArrayList<PacmanGroup6>(
-				generationSize);
-		PacmanGroup6 newPacman;
-		for (int i = 0; i < generationSize; i++) {
-			newPacman = new PacmanGroup6();
-			newPacman.initRandom();
-			currentGeneration.add(newPacman);
-		}
-
-		for (int gen = 0; gen < generationCount; gen++) {
-			// for each new generation reset progress bar
-			LineChartContainer.progress.setProgress(0);
-
-			if ((gen + 1) % 100 == 0) {
-				PacmanGroup6.baseDir = "D://tmp/Pacman/Gen" + (gen + 1);
-				for (int i = 0; i < currentGeneration.size(); i++) {
-					currentGeneration.get(i)
-							.save(String.format("Pacman%04d", i));
-				}
-			}
-
-			System.out.println(String.format("#### Generation %02d ####", gen));
-
-			// score each individual (in parallel when possible)
-			currentGeneration.parallelStream().forEach(pacman -> {
-				pacman.setScore(exec.runExperiment(
-						pacman,
-						ghost,
-						trainingsPerNN));
-				LineChartContainer.progress.setProgress(
-						LineChartContainer.progress.getProgress()
-								+ progressPerStep);
-
-			});
-
-			// calculate cumulative scores for roulette wheel selection (this
-			// needs to be done in order - no speedup with parallel execution)
-			// also calculate some statistics
-			double generationMax = Double.NEGATIVE_INFINITY;
-			double generationMin = Double.POSITIVE_INFINITY;
-
-			// sum of all scores
-			int accumulatedScore = 0;
-			for (final PacmanGroup6 pacman : currentGeneration) {
-				accumulatedScore += pacman.score;
-				pacman.setAccumulatedScore(accumulatedScore);
-
-				if (pacman.score > highscore) {
-					highscore = pacman.score;
-					highscoreGeneration = gen;
-					bestPacman = pacman;
-
-					// save best so far
-					PacmanGroup6.baseDir = "D://tmp/Pacman";
-					bestPacman.save("winner");
-				}
-
-				generationMax = Math.max(generationMax, pacman.score);
-				generationMin = Math.min(generationMin, pacman.score);
-			}
-			System.out.println(String.format(
-					"Min:     %07.2f\n"
-							+ "Average: %07.2f\n"
-							+ "Max    : %07.2f\n",
-					generationMin,
-					(double) accumulatedScore / currentGeneration.size(),
-					generationMax));
-
-			LineChartContainer.updateOnPlatform(
-					generationMin,
-					generationMax,
-					accumulatedScore / currentGeneration.size(),
-					gen);
-
-			// generate a new generation by selecting the fittest parents with
-			// rouletteWheel selection
-			final List<PacmanGroup6> newGeneration = new ArrayList<PacmanGroup6>(
-					generationSize);
-			for (int i = 0; i < generationSize / 2; i++) {
-				PacmanGroup6[] pacmanPair = rouletteWheel(
-						currentGeneration,
-						accumulatedScore,
-						2);
-				pacmanPair = PacmanGroup6
-						.createChilds(pacmanPair[0], pacmanPair[1]);
-
-				newGeneration.add(pacmanPair[0]);
-				newGeneration.add(pacmanPair[1]);
-			}
-
-			currentGeneration = newGeneration;
-		}
-
-		System.out.print(
-				"\nFinished training for " + generationCount
-						+ " Generations. Best Pacman is from Generating "
-						+ highscoreGeneration + " and scored "
-						+ bestPacman.score
-						+ " Points.\nGeneration best replay from several runs...");
-
-		PacmanGroup6.baseDir = "D://tmp/Pacman";
-		bestPacman.save("winner");
 	}
 
 	/**
@@ -678,6 +561,10 @@ public class Exec {
 
 		static ProgressBar					progress		= null;
 
+		// indicate to create the next generation out of only the two best
+		// individuals
+		static boolean						pairOnlyBest	= false;
+
 		public static void updateOnPlatform(
 				double min,
 				double max,
@@ -720,6 +607,17 @@ public class Exec {
 			root.setBottom(progress);
 			progress.setMaxWidth(Double.MAX_VALUE);
 
+			final HBox hBox = new HBox();
+			final TextField field = new TextField("0.001");
+			final Button mutationRate = new Button("Update");
+			mutationRate.setOnAction(
+					e -> PacmanGroup6.BASE_MUTATION_RATE = Double
+							.parseDouble(field.getText()));
+			hBox.getChildren().add(field);
+			hBox.getChildren().add(mutationRate);
+
+			root.setTop(hBox);
+
 			final Scene scene = new Scene(root, 800, 600);
 			lineChart.getData().add(minSeries);
 			lineChart.getData().add(averageSeries);
@@ -738,6 +636,12 @@ public class Exec {
 				}
 			};
 
+			task.setOnFailed(value -> {
+				System.err.println(
+						"Pacman training failed due to following error:");
+				task.getException().printStackTrace(System.err);
+			});
+
 			final Thread th = new Thread(task);
 			th.setDaemon(true);
 			th.start();
@@ -745,6 +649,168 @@ public class Exec {
 
 		public static void open() {
 			launch();
+		}
+
+		private static void trainPacman(Exec exec) {
+			final int generationSize = 5000;
+			final int trainingsPerNN = 10;
+			final int generationCount = 500;
+			final GhostController ghost = new Legacy();
+
+			double highscore = Double.NEGATIVE_INFINITY;
+			int highscoreGeneration = 0;
+			PacmanGroup6 bestPacman = null;
+
+			final double progressPerStep = 1d / (generationSize);
+
+			/*
+			 * Init an initial random generation
+			 */
+			List<PacmanGroup6> currentGeneration = new ArrayList<PacmanGroup6>(
+					generationSize);
+			PacmanGroup6 newPacman;
+			for (int i = 0; i < generationSize; i++) {
+				newPacman = new PacmanGroup6();
+				newPacman.initRandom();
+				currentGeneration.add(newPacman);
+			}
+
+			for (int gen = 0; gen < generationCount; gen++) {
+				// for each new generation reset progress bar
+				LineChartContainer.progress.setProgress(0);
+
+				if ((gen + 1) % 100 == 0) {
+					PacmanGroup6.baseDir = "D://tmp/Pacman/Gen" + (gen + 1);
+					for (int i = 0; i < currentGeneration.size(); i++) {
+						currentGeneration.get(i)
+								.save(String.format("Pacman%04d", i));
+					}
+				}
+
+				System.out.println(
+						String.format("#### Generation %02d ####", gen));
+
+				// score each individual (in parallel when possible)
+				currentGeneration.parallelStream().forEach(pacman -> {
+					try {
+						pacman.setScore(exec.runExperiment(
+								pacman,
+								ghost,
+								trainingsPerNN));
+					} catch (final ArrayIndexOutOfBoundsException e) {
+						e.printStackTrace();
+						pacman.setScore(0);
+					}
+					LineChartContainer.progress.setProgress(
+							LineChartContainer.progress.getProgress()
+									+ progressPerStep);
+
+				});
+
+				// calculate cumulative scores for roulette wheel selection
+				// (this
+				// needs to be done in order - no speedup with parallel
+				// execution)
+				// also calculate some statistics
+				double generationMax = Double.NEGATIVE_INFINITY;
+				double generationMin = Double.POSITIVE_INFINITY;
+
+				// sum of all scores
+				int accumulatedScore = 0;
+				for (final PacmanGroup6 pacman : currentGeneration) {
+					accumulatedScore += pacman.score;
+					pacman.setAccumulatedScore(accumulatedScore);
+
+					/*
+					 * found new best pacman
+					 */
+					if (pacman.score > highscore) {
+						highscore = pacman.score;
+						highscoreGeneration = gen;
+						bestPacman = pacman;
+
+						// System.out.println(
+						// Arrays.deepToString(bestPacman.hiddenWeights));
+						// System.out.println(
+						// Arrays.deepToString(bestPacman.outputWeights));
+
+						// save best so far
+						PacmanGroup6.baseDir = "D://tmp/Pacman";
+						bestPacman.save("winner");
+					}
+
+					generationMax = Math.max(generationMax, pacman.score);
+					generationMin = Math.min(generationMin, pacman.score);
+				}
+				System.out.println(String.format(
+						"Min:     %07.2f\n"
+								+ "Average: %07.2f\n"
+								+ "Max    : %07.2f\n",
+						generationMin,
+						(double) accumulatedScore / currentGeneration.size(),
+						generationMax));
+
+				LineChartContainer.updateOnPlatform(
+						generationMin,
+						generationMax,
+						accumulatedScore / currentGeneration.size(),
+						gen);
+
+				/*
+				 * generate a new generation by selecting the fittest parents
+				 * with rouletteWheel selection
+				 */
+				final List<PacmanGroup6> newGeneration = new ArrayList<PacmanGroup6>(
+						generationSize);
+
+				for (int i = 0; i < generationSize / 2; i++) {
+					PacmanGroup6[] pacmanPair = rouletteWheel(
+							currentGeneration,
+							accumulatedScore,
+							2);
+
+					/*
+					 * Calculate a score ratio relative to the generation max
+					 */
+					final double scoreRatio = Math.max(
+							1 - (Math.max(
+									pacmanPair[0].score,
+									pacmanPair[1].score)
+									/ (generationMax)),
+							0);
+
+					/*
+					 * Map [0.5,1.0] to [0.0,1.0], [0.0,0.5] will be mapped to
+					 * zero. Individuums, that are half as good as the best one,
+					 * will not receive a higher mutation rate, all others will
+					 * receive stringly increased mutation rates
+					 */
+					final double mutationRate = (1
+							+ Math.max(0, (scoreRatio - 0.5) * 2) * 1000)
+							* PacmanGroup6.BASE_MUTATION_RATE;
+
+					pacmanPair = PacmanGroup6
+							.createChilds(
+									pacmanPair[0],
+									pacmanPair[1],
+									mutationRate);
+
+					newGeneration.add(pacmanPair[0]);
+					newGeneration.add(pacmanPair[1]);
+				}
+
+				currentGeneration = newGeneration;
+			}
+
+			System.out.print(
+					"\nFinished training for " + generationCount
+							+ " Generations. Best Pacman is from Generating "
+							+ highscoreGeneration + " and scored "
+							+ bestPacman.score
+							+ " Points.\nGeneration best replay from several runs...");
+
+			PacmanGroup6.baseDir = "D://tmp/Pacman";
+			bestPacman.save("winner");
 		}
 	}
 }
