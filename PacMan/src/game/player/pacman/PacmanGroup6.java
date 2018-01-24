@@ -2,6 +2,7 @@ package game.player.pacman;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.file.Files;
@@ -19,77 +20,77 @@ public class PacmanGroup6 extends AbstractPlayer {
 	/**
 	 * Base directory to store pacman data
 	 */
-	static public String		baseDir					= "D://tmp/Pacman";
+	static public String			baseDir				= "D://tmp/Pacman";
 
 	/**
 	 * The Bias value to be used
 	 */
-	private static final float	BIAS					= 1f;
+	private static final float		BIAS				= 1f;
 
 	/**
 	 * The radius of all randomly generated weight values.
 	 */
-	private static final float	WEIGHT_RADIUS			= 4f;
-	
+	private static final float		WEIGHT_RADIUS		= 4f;
+
 	/**
 	 * Whether or not the output should be checked for validity.
 	 */
-	private static final boolean CHECK_DIRECTION		= true;
-	
+	private static final boolean	CHECK_DIRECTION		= true;
+
 	/**
 	 * Apply this factor, to get some kind of normalized distance
 	 */
-	public static final float	DIST_CORRECTION			= 100f;
+	public static final float		DIST_CORRECTION		= 100f;
 
 	/**
 	 * The distance, pacman can "look"
 	 */
-	public static final float	SIGHT_RANGE				= 100f;
+	public static final float		SIGHT_RANGE			= 100f;
 
-	private final static Random	RAND					= new Random(
+	private final static Random		RAND				= new Random(
 			System.currentTimeMillis());
 
 	// public static final double MUTATION_PROBABILITY = 0.001;
 	// public static final double MUTATION_PROBABILITY = 0.01;
-	public static double		BASE_MUTATION_RATE	= 0.0015;
+	public static double			BASE_MUTATION_RATE	= 0.0015;
 
-	private static final int	INPUT_COUNT				= 54;
+	private static final int		INPUT_COUNT			= 54;
 
-	private static final int	OUTPUT_COUNT			= 4;
+	private static final int		OUTPUT_COUNT		= 4;
 
 	/**
 	 * Rule of Thumb: 1 Hidden layer, number of perceptrons: mean of #inputs and
 	 * #outputs
 	 */
-	private static final int	HIDDEN_PERCEPTRONS		= (INPUT_COUNT
+	private static final int		HIDDEN_PERCEPTRONS	= (INPUT_COUNT
 			+ OUTPUT_COUNT) / 2;											// /
 																			// 2;
 
-	public float[][]			hiddenWeights;
+	public float[][]				hiddenWeights;
 
-	public float[][]			outputWeights;
+	public float[][]				outputWeights;
 
 	/**
 	 * Stores the score of this Instance
 	 */
-	public double				score					= 0;
+	public double					score				= 0;
 
 	/**
 	 * Stores score information of previous Instances for the GA-Algorithm
 	 */
-	public double				accumulatedScore		= 0;
+	public double					accumulatedScore	= 0;
 
-	private float[]				inputValues;
-
-	/**
-	 * Used to store perceptron values when calling output.
-	 */
-	private final float[]		hiddenPerceptronValues;
+	private float[]					inputValues;
 
 	/**
 	 * Used to store perceptron values when calling output.
 	 */
-	private final float[]		outputPerceptronValues;
+	private final float[]			hiddenPerceptronValues;
+
+	/**
+	 * Used to store perceptron values when calling output.
+	 */
+	private final float[]			outputPerceptronValues;
 
 	/**
 	 * Creates exactly two new {@link PacmanGroup6} instances
@@ -103,7 +104,7 @@ public class PacmanGroup6 extends AbstractPlayer {
 			PacmanGroup6 father,
 			double mutationRate) {
 		final PacmanGroup6[] childs = {
-				new PacmanGroup6(), new PacmanGroup6()
+				new PacmanGroup6(false), new PacmanGroup6(false)
 		};
 
 		final int splitPointHiddenWeights = RAND.nextInt(INPUT_COUNT + 1);
@@ -120,8 +121,10 @@ public class PacmanGroup6 extends AbstractPlayer {
 					/*
 					 * shift range to [-4,4]
 					 */
-					childs[0].hiddenWeights[i][w] = RAND.nextFloat() * 2*WEIGHT_RADIUS - WEIGHT_RADIUS;
-					childs[1].hiddenWeights[i][w] = RAND.nextFloat() * 2*WEIGHT_RADIUS - WEIGHT_RADIUS;
+					childs[0].hiddenWeights[i][w] = RAND.nextFloat() * 2
+							* WEIGHT_RADIUS - WEIGHT_RADIUS;
+					childs[1].hiddenWeights[i][w] = RAND.nextFloat() * 2
+							* WEIGHT_RADIUS - WEIGHT_RADIUS;
 				} else {
 					/*
 					 * in case of no mutation, just copy
@@ -152,8 +155,10 @@ public class PacmanGroup6 extends AbstractPlayer {
 																 * shift range
 																 * to [-4,4]
 																 */
-					childs[0].outputWeights[i][w] = RAND.nextFloat() * 2*WEIGHT_RADIUS - WEIGHT_RADIUS;
-					childs[0].outputWeights[i][w] = RAND.nextFloat() * 2*WEIGHT_RADIUS - WEIGHT_RADIUS;
+					childs[0].outputWeights[i][w] = RAND.nextFloat() * 2
+							* WEIGHT_RADIUS - WEIGHT_RADIUS;
+					childs[0].outputWeights[i][w] = RAND.nextFloat() * 2
+							* WEIGHT_RADIUS - WEIGHT_RADIUS;
 				} else {
 					/*
 					 * in case of no mutation, just copy
@@ -173,6 +178,10 @@ public class PacmanGroup6 extends AbstractPlayer {
 	}
 
 	public PacmanGroup6() {
+		this(true);
+	}
+
+	public PacmanGroup6(boolean loadBest) {
 		// one weight set/vector for each hidden perceptron (fully
 		// connected)
 		// +1 for the bias input to each neuron
@@ -184,8 +193,11 @@ public class PacmanGroup6 extends AbstractPlayer {
 		hiddenPerceptronValues = new float[HIDDEN_PERCEPTRONS];
 		outputPerceptronValues = new float[OUTPUT_COUNT];
 
-		// TODO remove
-		initRandom();
+		if (loadBest) {
+			load(
+					getClass().getClassLoader()
+							.getResourceAsStream("data/Group6DataForLevel1"));
+		}
 	}
 
 	/**
@@ -198,13 +210,15 @@ public class PacmanGroup6 extends AbstractPlayer {
 		 */
 		for (int i = 0; i < hiddenWeights.length; i++) {
 			for (int j = 0; j < INPUT_COUNT + 1; j++) {
-				hiddenWeights[i][j] = (float) (RAND.nextDouble() * 2*WEIGHT_RADIUS) - WEIGHT_RADIUS;
+				hiddenWeights[i][j] = (float) (RAND.nextDouble() * 2
+						* WEIGHT_RADIUS) - WEIGHT_RADIUS;
 			}
 		}
 
 		for (int i = 0; i < outputWeights.length; i++) {
 			for (int j = 0; j < hiddenWeights.length + 1; j++) {
-				outputWeights[i][j] = (float) (RAND.nextDouble() * 2*WEIGHT_RADIUS) - WEIGHT_RADIUS;
+				outputWeights[i][j] = (float) (RAND.nextDouble() * 2
+						* WEIGHT_RADIUS) - WEIGHT_RADIUS;
 			}
 		}
 	}
@@ -239,10 +253,19 @@ public class PacmanGroup6 extends AbstractPlayer {
 
 	public void load(String name) {
 		try {
-			final ObjectInputStream objStream = new ObjectInputStream(
+			load(
 					Files.newInputStream(
 							Paths.get(baseDir, name),
 							StandardOpenOption.READ));
+		} catch (final IOException e) {
+			e.printStackTrace();
+			System.err.println("Could not load object: " + this);
+		}
+	}
+
+	public void load(InputStream stream) {
+		try {
+			final ObjectInputStream objStream = new ObjectInputStream(stream);
 
 			hiddenWeights = (float[][]) objStream.readObject();
 			outputWeights = (float[][]) objStream.readObject();
@@ -310,7 +333,9 @@ public class PacmanGroup6 extends AbstractPlayer {
 		int resultDirection = 0;
 		for (int i = 0; i < outputPerceptronValues.length; i++) {
 			if (outputPerceptronValues[i] > result) {
-				if(!CHECK_DIRECTION || directionValid(i, game.getPossiblePacManDirs(true))){
+				if (!CHECK_DIRECTION || directionValid(
+						i,
+						game.getPossiblePacManDirs(true))) {
 					result = outputPerceptronValues[i];
 					resultDirection = i;
 				}
@@ -320,14 +345,14 @@ public class PacmanGroup6 extends AbstractPlayer {
 		return resultDirection;
 	}
 
-	boolean directionValid(int direction, int[] allowedDirections){
-		for(int dir : allowedDirections)
-			if(dir==direction)
+	boolean directionValid(int direction, int[] allowedDirections) {
+		for (final int dir : allowedDirections)
+			if (dir == direction)
 				return true;
-					
+
 		return false;
 	}
-	
+
 	/**
 	 * Returns the inputs for this Pacman Neural-Net. Creates a new array of
 	 * matching size, if inputArray is empty.
@@ -443,7 +468,7 @@ public class PacmanGroup6 extends AbstractPlayer {
 					.getPathDistance(pacmanLocation, curGhostLoc))
 					/ DIST_CORRECTION;
 			// ghost edible
-			inputArray[index++] = game.getEdibleTime(ghost)>0? 1:0;
+			inputArray[index++] = game.getEdibleTime(ghost) > 0 ? 1 : 0;
 		}
 
 		return inputArray;

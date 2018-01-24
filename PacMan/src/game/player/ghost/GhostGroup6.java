@@ -2,95 +2,95 @@ package game.player.ghost;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Random;
 
 import game.core.Game;
 import game.core.Game.DM;
 import gui.AbstractGhost;
-import gui.AbstractPlayer;
 
 public class GhostGroup6 extends AbstractGhost {
 
 	/**
 	 * Base directory to store pacman data
 	 */
-	static public String		baseDir					= "D://tmp/Pacman";
+	static public String			baseDir					= "D://tmp/Pacman";
 
 	/**
 	 * The Bias value to be used
 	 */
-	private static final float	BIAS					= 1f;
+	private static final float		BIAS					= 1f;
 
 	/**
 	 * The radius of all randomly generated weight values.
 	 */
-	private static final float	WEIGHT_RADIUS			= 4f;
-	
+	private static final float		WEIGHT_RADIUS			= 4f;
+
 	/**
 	 * Whether or not the output should be checked for validity.
 	 */
-	private static final boolean CHECK_DIRECTION		= true;	
+	private static final boolean	CHECK_DIRECTION			= false;
 	/**
 	 * Apply this factor, to get some kind of normalized distance
 	 */
-	public static final float	DIST_CORRECTION			= 100f;
+	public static final float		DIST_CORRECTION			= 100f;
 
 	/**
 	 * The distance, ghosts can "look"
 	 */
-	public static final float	SIGHT_RANGE				= 100f;
+	public static final float		SIGHT_RANGE				= 100f;
 
-	private final static Random	RAND					= new Random(
+	private final static Random		RAND					= new Random(
 			System.currentTimeMillis());
 
 	// public static final double MUTATION_PROBABILITY = 0.001;
 	// public static final double MUTATION_PROBABILITY = 0.01;
-	public static double		BASE_MUTATION_RATE	= 0.0015;
+	public static double			BASE_MUTATION_RATE		= 0.0015;
 
-	private static final int	INPUT_COUNT				= 60;
+	private static final int		INPUT_COUNT				= 60;
 
-	private static final int	OUTPUT_COUNT			= 4*Game.NUM_GHOSTS;
+	private static final int		OUTPUT_COUNT			= 4
+			* Game.NUM_GHOSTS;
 
 	/**
 	 * Rule of Thumb: 1 Hidden layer, number of perceptrons: mean of #inputs and
 	 * #outputs
 	 */
-	private static final int	HIDDEN_PERCEPTRONS		= (INPUT_COUNT
-			+ OUTPUT_COUNT) / 2;											// /
-																			// 2;
+	private static final int		HIDDEN_PERCEPTRONS		= (INPUT_COUNT
+			+ OUTPUT_COUNT) / 2;												// /
+																				// 2;
 
-	public float[][]			hiddenWeights;
+	public float[][]				hiddenWeights;
 
-	public float[][]			outputWeights;
+	public float[][]				outputWeights;
 
 	/**
 	 * Stores the score of this Instance
 	 */
-	public double				score					= 0;
+	public double					score					= 0;
 
 	/**
 	 * Stores score information of previous Instances for the GA-Algorithm
 	 */
-	public double				accumulatedInverseScore		= 0;
+	public double					accumulatedInverseScore	= 0;
 
-	private float[]				inputValues;
-
-	/**
-	 * Used to store perceptron values when calling output.
-	 */
-	private final float[]		hiddenPerceptronValues;
+	private float[]					inputValues;
 
 	/**
 	 * Used to store perceptron values when calling output.
 	 */
-	private final float[]		outputPerceptronValues;
+	private final float[]			hiddenPerceptronValues;
+
+	/**
+	 * Used to store perceptron values when calling output.
+	 */
+	private final float[]			outputPerceptronValues;
 
 	/**
 	 * Creates exactly two new {@link GhostGroup6} instances
@@ -104,7 +104,7 @@ public class GhostGroup6 extends AbstractGhost {
 			GhostGroup6 father,
 			double mutationRate) {
 		final GhostGroup6[] childs = {
-				new GhostGroup6(), new GhostGroup6()
+				new GhostGroup6(false), new GhostGroup6(false)
 		};
 
 		final int splitPointHiddenWeights = RAND.nextInt(INPUT_COUNT + 1);
@@ -121,8 +121,10 @@ public class GhostGroup6 extends AbstractGhost {
 					/*
 					 * shift range to [-4,4]
 					 */
-					childs[0].hiddenWeights[i][w] = RAND.nextFloat() * 2*WEIGHT_RADIUS - WEIGHT_RADIUS;
-					childs[1].hiddenWeights[i][w] = RAND.nextFloat() * 2*WEIGHT_RADIUS - WEIGHT_RADIUS;
+					childs[0].hiddenWeights[i][w] = RAND.nextFloat() * 2
+							* WEIGHT_RADIUS - WEIGHT_RADIUS;
+					childs[1].hiddenWeights[i][w] = RAND.nextFloat() * 2
+							* WEIGHT_RADIUS - WEIGHT_RADIUS;
 				} else {
 					/*
 					 * in case of no mutation, just copy
@@ -153,8 +155,10 @@ public class GhostGroup6 extends AbstractGhost {
 																 * shift range
 																 * to [-4,4]
 																 */
-					childs[0].outputWeights[i][w] = RAND.nextFloat() * 2*WEIGHT_RADIUS - WEIGHT_RADIUS;
-					childs[0].outputWeights[i][w] = RAND.nextFloat() * 2*WEIGHT_RADIUS - WEIGHT_RADIUS;
+					childs[0].outputWeights[i][w] = RAND.nextFloat() * 2
+							* WEIGHT_RADIUS - WEIGHT_RADIUS;
+					childs[0].outputWeights[i][w] = RAND.nextFloat() * 2
+							* WEIGHT_RADIUS - WEIGHT_RADIUS;
 				} else {
 					/*
 					 * in case of no mutation, just copy
@@ -174,6 +178,10 @@ public class GhostGroup6 extends AbstractGhost {
 	}
 
 	public GhostGroup6() {
+		this(true);
+	}
+
+	public GhostGroup6(boolean loadBest) {
 		// one weight set/vector for each hidden perceptron (fully
 		// connected)
 		// +1 for the bias input to each neuron
@@ -185,8 +193,11 @@ public class GhostGroup6 extends AbstractGhost {
 		hiddenPerceptronValues = new float[HIDDEN_PERCEPTRONS];
 		outputPerceptronValues = new float[OUTPUT_COUNT];
 
-		// TODO remove
-		initRandom();
+		if (loadBest) {
+			load(
+					getClass().getClassLoader()
+							.getResourceAsStream("data/Group6DataForLevel2"));
+		}
 	}
 
 	/**
@@ -199,13 +210,15 @@ public class GhostGroup6 extends AbstractGhost {
 		 */
 		for (int i = 0; i < hiddenWeights.length; i++) {
 			for (int j = 0; j < INPUT_COUNT + 1; j++) {
-				hiddenWeights[i][j] = (float) (RAND.nextDouble() * 2*WEIGHT_RADIUS) - WEIGHT_RADIUS;
+				hiddenWeights[i][j] = (float) (RAND.nextDouble() * 2
+						* WEIGHT_RADIUS) - WEIGHT_RADIUS;
 			}
 		}
 
 		for (int i = 0; i < outputWeights.length; i++) {
 			for (int j = 0; j < hiddenWeights.length + 1; j++) {
-				outputWeights[i][j] = (float) (RAND.nextDouble() * 2*WEIGHT_RADIUS) - WEIGHT_RADIUS;
+				outputWeights[i][j] = (float) (RAND.nextDouble() * 2
+						* WEIGHT_RADIUS) - WEIGHT_RADIUS;
 			}
 		}
 	}
@@ -240,10 +253,20 @@ public class GhostGroup6 extends AbstractGhost {
 
 	public void load(String name) {
 		try {
+			load(Files.newInputStream(
+					Paths.get(baseDir, name),
+					StandardOpenOption.READ));
+
+		} catch (final IOException e) {
+			e.printStackTrace();
+			System.err.println("Could not load object: " + this);
+		}
+	}
+
+	public void load(InputStream stream) {
+		try {
 			final ObjectInputStream objStream = new ObjectInputStream(
-					Files.newInputStream(
-							Paths.get(baseDir, name),
-							StandardOpenOption.READ));
+					stream);
 
 			hiddenWeights = (float[][]) objStream.readObject();
 			outputWeights = (float[][]) objStream.readObject();
@@ -307,34 +330,35 @@ public class GhostGroup6 extends AbstractGhost {
 			outputPerceptronValues[i] = pValue;
 		}
 
-		//find final direction outputs now
-		float[] maxResults = new float[Game.NUM_GHOSTS];
+		// find final direction outputs now
+		final float[] maxResults = new float[Game.NUM_GHOSTS];
 		maxResults[0] = Float.NEGATIVE_INFINITY;
 		maxResults[1] = Float.NEGATIVE_INFINITY;
 		maxResults[2] = Float.NEGATIVE_INFINITY;
 		maxResults[3] = Float.NEGATIVE_INFINITY;
-		
-		//auto init to 0
-		int[] resultDirections = new int[Game.NUM_GHOSTS];
-		
+
+		// auto init to 0
+		final int[] resultDirections = new int[Game.NUM_GHOSTS];
+
 		for (int i = 0; i < outputPerceptronValues.length; i++) {
-			if (outputPerceptronValues[i] > maxResults[i/Game.NUM_GHOSTS]) {
-				if(!CHECK_DIRECTION || directionValid(i%4, game.getPossibleGhostDirs(i/Game.NUM_GHOSTS)))
-				{
-					maxResults[i/Game.NUM_GHOSTS] = outputPerceptronValues[i];
-					resultDirections[i/Game.NUM_GHOSTS] = i%4;
+			if (outputPerceptronValues[i] > maxResults[i / Game.NUM_GHOSTS]) {
+				if (!CHECK_DIRECTION || directionValid(
+						i % 4,
+						game.getPossibleGhostDirs(i / Game.NUM_GHOSTS))) {
+					maxResults[i / Game.NUM_GHOSTS] = outputPerceptronValues[i];
+					resultDirections[i / Game.NUM_GHOSTS] = i % 4;
 				}
 			}
 		}
 
 		return resultDirections;
 	}
-	
-	boolean directionValid(int direction, int[] allowedDirections){
-		for(int dir : allowedDirections)
-			if(dir==direction)
+
+	boolean directionValid(int direction, int[] allowedDirections) {
+		for (final int dir : allowedDirections)
+			if (dir == direction)
 				return true;
-					
+
 		return false;
 	}
 
@@ -392,7 +416,7 @@ public class GhostGroup6 extends AbstractGhost {
 			final int curGhostDir = game.getCurGhostDir(ghost);
 
 			final int toPacmanDir = game
-					.getNextGhostDir(ghost,pacmanLocation , true, DM.PATH);
+					.getNextGhostDir(ghost, pacmanLocation, true, DM.PATH);
 
 			// ghost left
 			inputArray[index++] = toPacmanDir == Game.LEFT ? 1 : 0;
@@ -417,11 +441,11 @@ public class GhostGroup6 extends AbstractGhost {
 					.getPathDistance(pacmanLocation, curGhostLoc))
 					/ DIST_CORRECTION;
 			// ghost edible
-			inputArray[index++] = game.getEdibleTime(ghost)>0? 1 : 0;
-			
+			inputArray[index++] = game.getEdibleTime(ghost) > 0 ? 1 : 0;
+
 			/*
-			 * Measure, in which directions the ghost is allowed to go. Possible directions
-			 * are set to 1. Otherwise, the value will stay at 0
+			 * Measure, in which directions the ghost is allowed to go. Possible
+			 * directions are set to 1. Otherwise, the value will stay at 0
 			 */
 			for (final int direction : game.getPossibleGhostDirs(ghost)) {
 				switch (direction) {
@@ -439,7 +463,7 @@ public class GhostGroup6 extends AbstractGhost {
 						break;
 				}
 			}
-			index+=4;
+			index += 4;
 		}
 
 		return inputArray;

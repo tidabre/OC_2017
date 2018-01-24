@@ -15,8 +15,8 @@ import game.core._RG_;
 import game.player.ghost.GhostGroup6;
 import game.player.ghost.Legacy;
 import game.player.pacman.NearestPillPacMan;
-import game.player.pacman.NearestPillPacManVS;
 import game.player.pacman.PacmanGroup6;
+import game.player.pacman.TestPacMan;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
@@ -46,14 +46,18 @@ public class Exec {
 	// Several options are listed - simply remove comments to use the option you
 	// want
 	public static void main(String[] args) {
-		if (true) {
-			PacmanTrainer.open();
-		} else {
-			final PacmanGroup6 p = new PacmanGroup6();
-			p.load("winner");
-			final Exec exec = new Exec();
-			exec.runGame(p, new Legacy(), true, G.DELAY);
-		}
+		// if (true) {
+		// PacmanTrainer.open(true);
+		// } else {
+		// final PacmanGroup6 p = new PacmanGroup6();
+		// final Exec exec = new Exec();
+		// exec.runGame(p, new Legacy(), true, G.DELAY);
+		// }
+
+		// final GhostGroup6 g = new GhostGroup6();
+		// g.load("winnerGhost");
+		// final Exec exec = new Exec();
+		// exec.runGame(new TestPacMan(), g, true, G.DELAY);
 
 		// run game without time limits (un-comment if required)
 		// exec.runGame(new RandomPacMan(),new RandomGhosts(),true,G.DELAY);
@@ -78,8 +82,8 @@ public class Exec {
 		// this allows to select a player from GUI, the players must be save in
 		// the package game.player.player and the ghosts in the package
 		// game.player.ghosts
-		// final Exec exec = new Exec();
-		// exec.runGameMainFrame();
+		final Exec exec = new Exec();
+		exec.runGameMainFrame();
 	}
 
 	/**
@@ -568,6 +572,8 @@ public class Exec {
 		// individuals
 		static boolean						pairOnlyBest	= false;
 
+		static boolean						trainGhost		= false;
+
 		public static void updateOnPlatform(
 				double min,
 				double max,
@@ -634,7 +640,10 @@ public class Exec {
 			final Task<Void> task = new Task<Void>() {
 				@Override
 				protected Void call() throws Exception {
-					trainPacman(exec);
+					if (!trainGhost)
+						trainPacman(exec);
+					else
+						trainGhosts(exec);
 					return null;
 				}
 			};
@@ -650,13 +659,14 @@ public class Exec {
 			th.start();
 		}
 
-		public static void open() {
+		public static void open(boolean trainGhost) {
+			PacmanTrainer.trainGhost = trainGhost;
 			launch();
 		}
 
 		private static void trainPacman(Exec exec) {
-			final int generationSize = 5000;
-			final int trainingsPerNN = 10;
+			final int generationSize = 500;
+			final int trainingsPerNN = 5;
 			final int generationCount = 500;
 			final GhostController ghost = new Legacy();
 
@@ -673,7 +683,7 @@ public class Exec {
 					generationSize);
 			PacmanGroup6 newPacman;
 			for (int i = 0; i < generationSize; i++) {
-				newPacman = new PacmanGroup6();
+				newPacman = new PacmanGroup6(false);
 				newPacman.initRandom();
 				currentGeneration.add(newPacman);
 			}
@@ -815,12 +825,14 @@ public class Exec {
 			PacmanGroup6.baseDir = "D://tmp/Pacman";
 			bestPacman.save("winner");
 		}
-		
+
 		private static void trainGhosts(Exec exec) {
-			final int generationSize = 5000;
-			final int trainingsPerNN = 10;
+			final int generationSize = 2000;
+			final int trainingsPerNNAndPacman = 3;
 			final int generationCount = 500;
-			final PacManController pacman = new NearestPillPacMan();
+			final PacManController[] pacmans = new PacManController[2];
+			pacmans[0] = new NearestPillPacMan();
+			pacmans[1] = new TestPacMan();
 
 			double lowscore = Double.POSITIVE_INFINITY;
 			int lowscoreGeneration = 0;
@@ -831,10 +843,11 @@ public class Exec {
 			/*
 			 * Init an initial random generation
 			 */
-			List<GhostGroup6> currentGeneration = new ArrayList<>(generationSize);
+			List<GhostGroup6> currentGeneration = new ArrayList<>(
+					generationSize);
 			GhostGroup6 newGhost;
 			for (int i = 0; i < generationSize; i++) {
-				newGhost = new GhostGroup6();
+				newGhost = new GhostGroup6(false);
 				newGhost.initRandom();
 				currentGeneration.add(newGhost);
 			}
@@ -854,13 +867,19 @@ public class Exec {
 				System.out.println(
 						String.format("#### GhostGeneration %02d ####", gen));
 
-				// score each individual (in parallel when possible)
+				// score each individual (in parallel when possible) - also run
+				// the tests for each pacman opponent
 				currentGeneration.parallelStream().forEach(ghost -> {
 					try {
-						ghost.setScore(exec.runExperiment(
-								pacman,
+						ghost.setScore((exec.runExperiment(
+								pacmans[0],
 								ghost,
-								trainingsPerNN));
+								trainingsPerNNAndPacman) +
+								exec.runExperiment(
+										pacmans[1],
+										ghost,
+										trainingsPerNNAndPacman))
+								/ 2);
 					} catch (final ArrayIndexOutOfBoundsException e) {
 						e.printStackTrace();
 						ghost.setScore(0);
@@ -884,7 +903,7 @@ public class Exec {
 					accumulatedScore += ghost.score;
 
 					/*
-					 * found new best pacman
+					 * found new best ghost (lowest score is good)
 					 */
 					if (ghost.score < lowscore) {
 						lowscore = ghost.score;
@@ -908,9 +927,9 @@ public class Exec {
 						generationMax));
 
 				PacmanTrainer.updateOnPlatform(
-						generationMin,
-						generationMax,
-						accumulatedScore / currentGeneration.size(),
+						-generationMax,
+						-generationMin,
+						-accumulatedScore / currentGeneration.size(),
 						gen);
 
 				/*
@@ -924,14 +943,17 @@ public class Exec {
 					GhostGroup6[] ghostPair = rouletteWheelGhost(
 							currentGeneration,
 							accumulatedScore,
-							2, generationMin, generationMax);
+							2,
+							generationMin,
+							generationMax);
 
 					/*
 					 * Calculate a score ratio relative to the generation min
 					 */
-					final double scoreRatio = 
-									(Math.min(ghostPair[0].score,
-									ghostPair[1].score)-generationMin)/(generationMax-generationMin);
+					final double scoreRatio = (Math.min(
+							ghostPair[0].score,
+							ghostPair[1].score) - generationMin)
+							/ (generationMax - generationMin);
 
 					/*
 					 * Map [0.5,1.0] to [0.0,1.0], [0.0,0.5] will be mapped to
@@ -968,25 +990,33 @@ public class Exec {
 		}
 
 		private static GhostGroup6[] rouletteWheelGhost(
-			List<GhostGroup6> currentGeneration, double accumulatedScore, int count, double generationMin, double generationMax) {
-			
-			double accumulatedInverseScore = 0;
-			for(GhostGroup6 ghost : currentGeneration){
+				List<GhostGroup6> currentGeneration,
+				double accumulatedScore,
+				int count,
+				double generationMin,
+				double generationMax) {
 
-				accumulatedInverseScore = accumulatedInverseScore + (generationMax - ghost.score);
+			/*
+			 * Calculate ratio relative to arbitrary threshold of 2000
+			 */
+			double accumulatedInverseScore = 0;
+			for (final GhostGroup6 ghost : currentGeneration) {
+				accumulatedInverseScore = accumulatedInverseScore
+						+ (2000f / ghost.score);
 				ghost.accumulatedInverseScore = accumulatedInverseScore;
 			}
-			
+
 			final GhostGroup6[] resultArray = new GhostGroup6[count];
 
 			for (int i = 0; i < count; i++) {
-				final double randomScore = Math.random() * accumulatedInverseScore;
+				final double randomScore = Math.random()
+						* accumulatedInverseScore;
 				int targetIndex = currentGeneration.size() / 2;
 				double indexStep = Math.ceil(currentGeneration.size() / 2.0);
 				GhostGroup6 curGhost;
 
 				int tries = 0;
-				//cancel condition in case of bug...
+				// cancel condition in case of bug...
 				while (tries < currentGeneration.size() / 2) {
 					tries++;
 					curGhost = currentGeneration.get(targetIndex);
@@ -1005,16 +1035,19 @@ public class Exec {
 
 					indexStep = Math.ceil(indexStep / 2.0);
 					targetIndex = Math
-							.min(currentGeneration.size() - 1, Math.max(0, targetIndex));
+							.min(
+									currentGeneration.size() - 1,
+									Math.max(0, targetIndex));
 				}
 
 				if (resultArray[i] == null) {
 					// above algorithm bugged... use brute force :D
-					System.err.println("Bug in roulette Wheel Ghost Selection...");
+					System.err.println(
+							"Bug in roulette Wheel Ghost Selection...");
 					for (final GhostGroup6 cur : currentGeneration) {
 						if (randomScore <= cur.accumulatedInverseScore
 								&& randomScore >= cur.accumulatedInverseScore
-										- (generationMax - cur.score)) {
+										- (2000f / cur.score)) {
 							// in range
 							resultArray[i] = cur;
 							break;
